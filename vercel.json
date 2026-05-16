@@ -1,6 +1,5 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/travel-tracker.html" }
+    { "source": "/(.*)", "destination": "/travel-tracker.html" }
   ]
 }
