@@ -1588,9 +1588,6 @@
         } else {
           map[mid] = 0;
           renderForm();
-          // Focus the newly added row's input
-          const newInput = document.querySelector(`.ma-row[data-kind="${kind}"][data-mid="${mid}"] [data-amt]`);
-          if (newInput) { newInput.focus(); newInput.select(); }
         }
       });
       const amtInput = row.querySelector('[data-amt]');
