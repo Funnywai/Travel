@@ -729,7 +729,6 @@
       <button class="icon-btn" id="closeInput" aria-label="關閉"><i data-lucide="x"></i></button>
       <div class="tabs" id="tabs">
         <div class="tab active" data-tab="支出">支出</div>
-        <div class="tab" data-tab="預付">預付</div>
         <div class="tab" data-tab="轉賬">轉賬</div>
       </div>
       <button class="save-btn" id="saveBtn">儲存</button>
@@ -1451,9 +1450,8 @@
         </div>
       </div>`;
     } else {
-      const payerLabel = tab === '預付' ? '保管人' : '付款人';
       html += renderMemberAmountGroup({
-        title: payerLabel,
+        title: '付款人',
         members,
         map: state.form.payers,
         locked: state.form.payerLocked,
@@ -1650,7 +1648,7 @@
       const payers = state.form.payers;
       const shares = state.form.shares;
       if (!Object.keys(payers).length) {
-        showToast(tab === '預付' ? '請選擇至少一位保管人' : '請選擇至少一位付款人');
+        showToast('請選擇至少一位付款人');
         return;
       }
       if (!Object.keys(shares).length) { showToast('請選擇至少一位參與者'); return; }
