@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>旅行記賬</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --primary: #01696f;
+    --primary-dark: #014e52;
+    --primary-light: #e0f2f3;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --text: #1a1f24;
+    --text-muted: #6b7480;
+    --border: #e5e7eb;
+    --error: #d93030;
+    --success: #14a34a;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  body { overflow-x: hidden; }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    padding-bottom: 100px;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select { font-family: inherit; font-size: 15px; }
+
+  /* Header */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .group-name {
+    font-size: 18px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: -4px -8px;
+  }
+  .group-name:hover { background: var(--bg); }
+  .group-name input {
+    border: none; outline: none; background: transparent;
+    font: inherit; width: 100%;
+  }
+  .icon-btn {
+    width: 40px; height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    color: var(--text);
+    transition: background .15s;
+  }
+  .icon-btn:hover { background: var(--bg); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* Sections */
+  .section { padding: 20px; }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  /* Balance list */
+  .balance-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+  }
+  .balance-row + .balance-row { border-top: 1px solid var(--border); }
+  .balance-name { font-weight: 600; }
+  .balance-right { text-align: right; }
+  .balance-amount { font-weight: 700; font-size: 16px; }
+  .balance-status { font-size: 12px; margin-top: 2px; }
+  .status-neutral { color: var(--text-muted); }
+  .status-owe { color: var(--error); }
+  .status-receive { color: var(--success); }
+
+  /* Records */
+  .record-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+  }
+  .record-row + .record-row { border-top: 1px solid var(--border); }
+  .record-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .record-icon svg { width: 20px; height: 20px; }
+  .record-info { flex: 1; min-width: 0; }
+  .record-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .record-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .type-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .type-badge.t-prepaid { background: #fff4e0; color: #b56a00; }
+  .type-badge.t-transfer { background: #e8eaf6; color: #3949ab; }
+  .record-amount {
+    font-weight: 700;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .record-detail {
+    padding: 0 16px 14px 68px;
+    font-size: 13px;
+    color: var(--text-muted);
+    display: none;
+  }
+  .record-row.expanded + .record-detail { display: block; }
+  .record-delete {
+    margin-top: 8px;
+    color: var(--error);
+    font-size: 13px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  .empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: max(24px, calc((100vw - 480px) / 2 + 24px));
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(1,105,111,0.4);
+    z-index: 20;
+    transition: transform .15s, background .15s;
+  }
+  .fab:hover { background: var(--primary-dark); transform: scale(1.05); }
+  .fab svg { width: 26px; height: 26px; }
+
+  /* Overlay (input page) */
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    display: none;
+  }
+  .overlay.open { display: block; }
+  .sheet {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    bottom: 0;
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
+    background: var(--bg);
+    transition: transform .3s ease;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .overlay.open .sheet { transform: translateX(-50%) translateY(0); }
+
+  .sheet-header {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    z-index: 5;
+  }
+  .save-btn {
+    background: var(--primary);
+    color: white;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .save-btn:disabled { background: #b8c0c4; }
+
+  /* Tabs */
+  .tabs {
+    flex: 1;
+    display: flex;
+    background: var(--bg);
+    border-radius: 20px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .tab {
+    flex: 1;
+    padding: 6px 0;
+    text-align: center;
+    border-radius: 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: all .15s;
+  }
+  .tab.active {
+    background: var(--surface);
+    color: var(--primary);
+    font-weight: 600;
+    box-shadow: var(--shadow);
+  }
+
+  /* Form */
+  .form-body { padding: 16px; flex: 1; }
+  .form-group { background: var(--surface); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .form-row {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    gap: 12px;
+    min-height: 52px;
+  }
+  .form-row + .form-row { border-top: 1px solid var(--border); }
+  .form-row.col { flex-direction: column; align-items: stretch; }
+  .form-label { font-size: 14px; color: var(--text-muted); width: 70px; flex-shrink: 0; }
+  .form-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    text-align: right;
+    color: var(--text);
+  }
+  .form-input.left { text-align: left; }
+  select.form-input { text-align-last: right; appearance: none; padding-right: 6px; }
+
+  /* Category grid */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 16px;
+  }
+  .cat-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px;
+    border-radius: 10px;
+    transition: background .15s;
+  }
+  .cat-cell:hover { background: var(--bg); }
+  .cat-cell.active { background: var(--primary-light); }
+  .cat-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .cat-cell.active .cat-icon { background: var(--primary); color: white; }
+  .cat-label { font-size: 12px; color: var(--text-muted); }
+  .cat-cell.active .cat-label { color: var(--primary); font-weight: 600; }
+
+  /* Chips */
+  .chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 0;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 6px 14px;
+    border-radius: 18px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    white-space: nowrap;
+    transition: all .15s;
+    border: 1px solid var(--border);
+  }
+  .chip.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+  .chip.disabled { opacity: 0.4; pointer-events: none; }
+
+  /* Member-amount list (multi-select with editable amounts) */
+  .ma-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 8px;
+    background: var(--surface);
+  }
+  .ma-section-header .ma-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .ma-section-header .ma-sub { font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+  .ma-actions { display: flex; gap: 12px; }
+  .link-btn { color: var(--primary); font-size: 13px; font-weight: 600; padding: 4px; }
+  .link-btn.muted { color: var(--text-muted); }
+  .ma-list { background: var(--surface); }
+  .ma-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    gap: 10px;
+    min-height: 50px;
+  }
+  .ma-row + .ma-row { border-top: 1px solid var(--border); }
+  .ma-toggle {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .ma-check {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; color: white;
+    flex-shrink: 0;
+    transition: all .15s;
+  }
+  .ma-row.selected .ma-check {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .ma-name {
+    font-weight: 500;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ma-row:not(.selected) .ma-name { color: var(--text-muted); }
+  .ma-locked-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: inline-block;
+  }
+  .ma-amount {
+    width: 96px;
+    text-align: right;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    outline: none;
+    font-size: 14px;
+    background: var(--surface);
+  }
+  .ma-amount:focus { border-color: var(--primary); }
+  .ma-row.locked .ma-amount { border-color: var(--primary); }
+  .ma-cur { font-size: 12px; color: var(--text-muted); width: 32px; }
+  .ma-summary {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .ma-summary.warn { color: var(--error); }
+
+  /* Modal (setup, settings) */
+  .modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal.open { display: flex; }
+  .modal-content {
+    background: var(--surface);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp .25s ease;
+  }
+  .modal.centered { align-items: center; }
+  .modal.centered .modal-content { border-radius: var(--radius); margin: 16px; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-title { font-size: 18px; font-weight: 700; margin: 0 0 16px; }
+  .text-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    margin-bottom: 10px;
+  }
+  .text-input:focus { border-color: var(--primary); }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-weight: 600;
+    width: 100%;
+    font-size: 15px;
+  }
+  .btn-primary:disabled { background: #b8c0c4; }
+  .btn-ghost {
+    color: var(--primary);
+    font-weight: 600;
+    padding: 10px;
+  }
+
+  /* Member rows in settings */
+  .member-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+  }
+  .member-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  .member-row .remove-btn { color: var(--error); }
+
+  .url-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin: 10px 0;
+  }
+  .url-box .url-text {
+    flex: 1;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+  .copy-btn {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 4px 8px;
+  }
+
+  /* Skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, #ececec 0%, #f5f5f5 50%, #ececec 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .skel-row { height: 50px; margin-bottom: 8px; }
+
+  .toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity .2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="header">
+    <div class="group-name" id="groupName">載入中...</div>
+    <button class="icon-btn" id="settingsBtn" aria-label="設定">
+      <i data-lucide="settings"></i>
+    </button>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">收支狀況</h2>
+    <div class="card" id="balanceList">
+      <div class="skeleton skel-row"></div>
+      <div class="skeleton skel-row"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">消費明細</h2>
+    <div class="card" id="recordList">
+      <div class="skeleton skel-row"></div>
+      <div class="skeleton skel-row"></div>
+    </div>
+  </div>
+
+  <button class="fab" id="fab" aria-label="新增">
+    <i data-lucide="plus"></i>
+  </button>
+</div>
+
+<!-- Input overlay -->
+<div class="overlay" id="inputOverlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="icon-btn" id="closeInput" aria-label="關閉"><i data-lucide="x"></i></button>
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="支出">支出</div>
+        <div class="tab" data-tab="預付">預付</div>
+        <div class="tab" data-tab="轉賬">轉賬</div>
+      </div>
+      <button class="save-btn" id="saveBtn">儲存</button>
+    </div>
+    <div class="form-body" id="formBody"></div>
+  </div>
+</div>
+
+<!-- Setup modal -->
+<div class="modal centered" id="setupModal">
+  <div class="modal-content">
+    <h2 class="modal-title">建立新旅程</h2>
+    <label style="font-size:13px;color:var(--text-muted)">旅程名稱</label>
+    <input class="text-input" id="setupName" placeholder="例如：日本之旅" />
+    <label style="font-size:13px;color:var(--text-muted)">成員（至少 2 人）</label>
+    <div id="setupMembers"></div>
+    <button class="btn-ghost" id="setupAddMember">+ 新增成員</button>
+    <div style="height:10px"></div>
+    <button class="btn-primary" id="setupConfirm">建立</button>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal" id="settingsModal">
+  <div class="modal-content">
+    <h2 class="modal-title">設定</h2>
+    <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">成員</h3>
+    <div id="settingsMembers"></div>
+    <button class="btn-ghost" id="settingsAddMember">+ 新增成員</button>
+    <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">分享連結</h3>
+    <div class="url-box">
+      <span class="url-text" id="shareUrl"></span>
+      <button class="copy-btn" id="copyUrl">📋 複製</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn-primary" id="settingsClose">完成</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+(function(){
+  // ---------- Firebase ----------
+  const firebaseConfig = {
+    databaseURL: "https://travel-2cd12-default-rtdb.asia-southeast1.firebasedatabase.app/"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // ---------- Trip id from URL hash ----------
+  function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
+  let tripId = location.hash.replace('#','').trim();
+  if (!tripId) {
+    tripId = randomId(8);
+    location.hash = tripId;
+  }
+  const tripRef = db.ref('trips/' + tripId);
+
+  // ---------- State ----------
+  let state = {
+    meta: null,        // { name, currency, members: {id: {name}} }
+    records: {},       // { id: record }
+    currentTab: '支出',
+    selectedCategory: '餐飲',
+    form: {
+      amount: '',
+      note: '',
+      currency: 'JPY',
+      // 支出/預付:
+      payers: {},        // { memberId: amount }  (selected payers; multi)
+      payerLocked: {},   // { memberId: true }    (manually edited)
+      shares: {},        // { memberId: amount }  (selected participants; multi)
+      shareLocked: {},   // { memberId: true }
+      // 轉賬:
+      transferFrom: '',
+      transferTo: ''
+    }
+  };
+
+  const CURRENCIES = ['JPY','HKD','USD','TWD','KRW','EUR'];
+  const CATEGORIES = [
+    { key:'餐飲', emoji:'🍜' },
+    { key:'交通', emoji:'🚌' },
+    { key:'住宿', emoji:'🏨' },
+    { key:'購物', emoji:'🛍️' },
+    { key:'景點', emoji:'🎡' },
+    { key:'娛樂', emoji:'🎮' },
+    { key:'醫療', emoji:'💊' },
+    { key:'其他', emoji:'📦' }
+  ];
+  const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c.emoji]));
+
+  // ---------- Helpers ----------
+  const $ = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+  function formatDateZh(d){
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  }
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+  function showToast(msg){
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function renderIcons(){
+    if (window.lucide && window.lucide.createIcons) {
+      window.lucide.createIcons();
+    }
+  }
+
+  function memberList(){
+    if (!state.meta || !state.meta.members) return [];
+    return Object.entries(state.meta.members).map(([id, m]) => ({ id, name: m.name }));
+  }
+
+  function memberName(id){
+    const m = state.meta && state.meta.members && state.meta.members[id];
+    return m ? m.name : '?';
+  }
+
+  // ---------- Balance calc ----------
+  function computeBalances(){
+    const balances = {};
+    memberList().forEach(m => balances[m.id] = 0);
+    Object.values(state.records).forEach(r => {
+      if (!r) return;
+      if (r.type === '支出' || r.type === '預付') {
+        // New format: payers map + shares map
+        if (r.payers && r.shares) {
+          Object.entries(r.payers).forEach(([id, amt]) => {
+            if (balances.hasOwnProperty(id)) balances[id] += Number(amt) || 0;
+          });
+          Object.entries(r.shares).forEach(([id, amt]) => {
+            if (balances.hasOwnProperty(id)) balances[id] -= Number(amt) || 0;
+          });
+        } else {
+          // Legacy: single payer + equal participants
+          const parts = (r.participants || []).filter(p => balances.hasOwnProperty(p));
+          if (!parts.length || !balances.hasOwnProperty(r.payer)) return;
+          const share = r.amount / parts.length;
+          balances[r.payer] += r.amount;
+          parts.forEach(p => balances[p] -= share);
+        }
+      } else if (r.type === '轉賬') {
+        const from = r.payer || r.transferFrom;
+        const to = r.receiver || r.transferTo;
+        if (balances.hasOwnProperty(from)) balances[from] += r.amount;
+        if (balances.hasOwnProperty(to)) balances[to] -= r.amount;
+      }
+    });
+    return balances;
+  }
+
+  // ---------- Render: balances ----------
+  function renderBalances(){
+    const container = $('#balanceList');
+    const members = memberList();
+    if (!members.length) {
+      container.innerHTML = '<div class="empty">尚未新增成員</div>';
+      return;
+    }
+    const balances = computeBalances();
+    const currency = (state.meta && state.meta.currency) || 'JPY';
+    container.innerHTML = members.map(m => {
+      const b = balances[m.id] || 0;
+      let status, cls;
+      if (Math.abs(b) < 0.005) { status = '收支平衡'; cls = 'status-neutral'; }
+      else if (b < 0) { status = '待支付'; cls = 'status-owe'; }
+      else { status = '待收款'; cls = 'status-receive'; }
+      const amt = b.toFixed(1);
+      return `<div class="balance-row">
+        <div class="balance-name">${escapeHtml(m.name)}</div>
+        <div class="balance-right">
+          <div class="balance-amount ${cls}">${amt} ${currency}</div>
+          <div class="balance-status ${cls}">${status}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- Render: records ----------
+  function renderRecords(){
+    const container = $('#recordList');
+    const entries = Object.entries(state.records)
+      .sort((a,b) => (b[1].date || '').localeCompare(a[1].date || '') || b[0].localeCompare(a[0]));
+    if (!entries.length) {
+      container.innerHTML = '<div class="empty">還沒有任何記錄，點擊 + 新增第一筆！</div>';
+      return;
+    }
+    container.innerHTML = entries.map(([id, r]) => {
+      const typeClass = r.type === '預付' ? 't-prepaid' : r.type === '轉賬' ? 't-transfer' : '';
+      const icon = r.type === '支出' ? (CAT_BY_KEY[r.category] || '📦')
+        : r.type === '預付' ? '💼' : '🔄';
+      let detail = '';
+      if (r.type === '轉賬') {
+        const from = r.payer || r.transferFrom;
+        const to = r.receiver || r.transferTo;
+        detail = `${escapeHtml(memberName(from))} → ${escapeHtml(memberName(to))}`;
+      } else {
+        const lbl = r.type === '預付' ? '保管人' : '付款人';
+        if (r.payers && r.shares) {
+          const payerLines = Object.entries(r.payers)
+            .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
+          const shareLines = Object.entries(r.shares)
+            .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
+          detail = `${lbl}：${payerLines}<br>參與者：${shareLines}`;
+        } else {
+          const parts = (r.participants || []).map(memberName).map(escapeHtml).join('、');
+          detail = `${lbl}：${escapeHtml(memberName(r.payer))}<br>參與者：${parts}`;
+        }
+      }
+      return `<div class="record-row" data-id="${id}">
+          <div class="record-icon"><span style="font-size:20px">${icon}</span></div>
+          <div class="record-info">
+            <div class="record-title">${escapeHtml(r.note || r.category || r.type)}</div>
+            <div class="record-sub">
+              <span class="type-badge ${typeClass}">${r.type}</span>
+              <span>${escapeHtml(r.date || '')}</span>
+            </div>
+          </div>
+          <div class="record-amount">${r.amount.toFixed(1)} ${r.currency}</div>
+        </div>
+        <div class="record-detail">
+          ${detail}
+          <div><button class="record-delete" data-del="${id}">🗑 刪除</button></div>
+        </div>`;
+    }).join('');
+
+    $$('#recordList .record-row').forEach(row => {
+      row.addEventListener('click', () => row.classList.toggle('expanded'));
+    });
+    $$('#recordList [data-del]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = btn.dataset.del;
+        if (confirm('確定刪除此記錄？')) {
+          tripRef.child('records/' + id).remove();
+        }
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  // ---------- Group name inline edit ----------
+  function renderGroupName(){
+    const el = $('#groupName');
+    el.textContent = (state.meta && state.meta.name) || '未命名旅程';
+  }
+  $('#groupName').addEventListener('click', () => {
+    if (!state.meta) return;
+    const el = $('#groupName');
+    const current = state.meta.name || '';
+    el.innerHTML = `<input value="${escapeHtml(current)}" />`;
+    const input = el.querySelector('input');
+    input.focus();
+    input.select();
+    const commit = () => {
+      const v = input.value.trim() || '未命名旅程';
+      tripRef.child('meta/name').set(v);
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { el.textContent = current; }
+    });
+  });
+
+  // ---------- Input form rendering ----------
+  function defaultForm(){
+    const all = memberList();
+    // Default participants: everyone selected, payer: nobody (user must pick)
+    const shares = {};
+    all.forEach(m => shares[m.id] = 0);
+    return {
+      amount: '',
+      note: formatDateZh(new Date()),
+      currency: (state.meta && state.meta.currency) || 'JPY',
+      payers: {},
+      payerLocked: {},
+      shares: shares,
+      shareLocked: {},
+      transferFrom: '',
+      transferTo: ''
+    };
+  }
+
+  function openInput(){
+    state.currentTab = '支出';
+    state.selectedCategory = '餐飲';
+    state.form = defaultForm();
+    $$('#tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.currentTab));
+    renderForm();
+    $('#inputOverlay').classList.add('open');
+  }
+  function closeInput(){
+    $('#inputOverlay').classList.remove('open');
+  }
+
+  function round2(n){ return Math.round(n * 100) / 100; }
+
+  // Redistribute total across unlocked selected members.
+  // `map` = current { id: amount } (only selected ids present).
+  // `locked` = { id: true } for manually edited ids.
+  // `total` = number, the 總計.
+  function redistribute(map, locked, total){
+    const ids = Object.keys(map);
+    if (!ids.length) return;
+    const lockedSum = ids.filter(id => locked[id]).reduce((s, id) => s + (Number(map[id]) || 0), 0);
+    const unlockedIds = ids.filter(id => !locked[id]);
+    const remaining = Math.max(0, total - lockedSum);
+    if (!unlockedIds.length) return;
+    const share = round2(remaining / unlockedIds.length);
+    unlockedIds.forEach((id, i) => {
+      // Put rounding remainder on last unlocked entry.
+      if (i === unlockedIds.length - 1) {
+        map[id] = round2(remaining - share * (unlockedIds.length - 1));
+      } else {
+        map[id] = share;
+      }
+    });
+  }
+
+  function renderForm(){
+    const tab = state.currentTab;
+    const members = memberList();
+    const total = parseFloat(state.form.amount) || 0;
+
+    // Re-balance unlocked entries each render based on current total.
+    if (tab !== '轉賬') {
+      redistribute(state.form.payers, state.form.payerLocked, total);
+      redistribute(state.form.shares, state.form.shareLocked, total);
+    }
+
+    const currencySelect = `<select class="form-input" id="f-currency">
+      ${CURRENCIES.map(c => `<option ${c===state.form.currency?'selected':''}>${c}</option>`).join('')}
+    </select>`;
+
+    let html = '';
+    if (tab === '支出') {
+      html += `<div class="form-group">
+        <div class="cat-grid" id="catGrid">
+          ${CATEGORIES.map(c => `<div class="cat-cell ${c.key===state.selectedCategory?'active':''}" data-cat="${c.key}">
+            <div class="cat-icon">${c.emoji}</div>
+            <div class="cat-label">${c.key}</div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+    html += `<div class="form-group">
+      <div class="form-row"><div class="form-label">總計</div>
+        <input class="form-input" id="f-amount" type="number" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
+      </div>
+      <div class="form-row"><div class="form-label">備註</div>
+        <input class="form-input" id="f-note" placeholder="備註" value="${escapeHtml(state.form.note)}" />
+      </div>
+      <div class="form-row"><div class="form-label">貨幣</div>${currencySelect}</div>
+    </div>`;
+
+    if (tab === '轉賬') {
+      const memberChips = (selected, exclude) => members.map(m => {
+        const isSel = selected === m.id;
+        const disabled = exclude === m.id ? 'disabled' : '';
+        return `<button class="chip ${isSel?'active':''} ${disabled}" data-mid="${m.id}">${escapeHtml(m.name)}</button>`;
+      }).join('');
+      html += `<div class="form-group">
+        <div class="form-row"><div class="form-label">轉賬人</div>
+          <div class="chips" id="chipsPayer">${memberChips(state.form.transferFrom, state.form.transferTo)}</div>
+        </div>
+        <div class="form-row"><div class="form-label">收款人</div>
+          <div class="chips" id="chipsReceiver">${memberChips(state.form.transferTo, state.form.transferFrom)}</div>
+        </div>
+      </div>`;
+    } else {
+      const payerLabel = tab === '預付' ? '保管人' : '付款人';
+      html += renderMemberAmountGroup({
+        title: payerLabel,
+        members,
+        map: state.form.payers,
+        locked: state.form.payerLocked,
+        total,
+        currency: state.form.currency,
+        kind: 'payer'
+      });
+      html += renderMemberAmountGroup({
+        title: '參與者',
+        members,
+        map: state.form.shares,
+        locked: state.form.shareLocked,
+        total,
+        currency: state.form.currency,
+        kind: 'share'
+      });
+    }
+
+    $('#formBody').innerHTML = html;
+
+    // common bindings
+    $('#f-amount').addEventListener('input', e => {
+      state.form.amount = e.target.value;
+      // Re-render to redistribute, but keep input focused.
+      const sel = e.target.selectionStart;
+      renderForm();
+      const el = $('#f-amount');
+      if (el) { el.focus(); try { el.setSelectionRange(sel, sel); } catch(_){} }
+    });
+    $('#f-note').addEventListener('input', e => state.form.note = e.target.value);
+    $('#f-currency').addEventListener('change', e => { state.form.currency = e.target.value; renderForm(); });
+
+    if (tab === '支出') {
+      $$('#catGrid .cat-cell').forEach(c => c.addEventListener('click', () => {
+        state.selectedCategory = c.dataset.cat;
+        $$('#catGrid .cat-cell').forEach(x => x.classList.toggle('active', x === c));
+      }));
+    }
+
+    if (tab === '轉賬') {
+      $$('#chipsPayer .chip').forEach(ch => ch.addEventListener('click', () => {
+        if (ch.classList.contains('disabled')) return;
+        state.form.transferFrom = ch.dataset.mid;
+        renderForm();
+      }));
+      $$('#chipsReceiver .chip').forEach(ch => ch.addEventListener('click', () => {
+        if (ch.classList.contains('disabled')) return;
+        state.form.transferTo = ch.dataset.mid;
+        renderForm();
+      }));
+    } else {
+      bindMemberAmountGroup('payer');
+      bindMemberAmountGroup('share');
+    }
+  }
+
+  function renderMemberAmountGroup({title, members, map, locked, total, currency, kind}){
+    const ids = Object.keys(map);
+    const sum = ids.reduce((s, id) => s + (Number(map[id]) || 0), 0);
+    const allSelected = ids.length === members.length;
+    const diff = round2(sum - total);
+
+    let summary = '';
+    if (ids.length > 0 && total > 0) {
+      const cls = Math.abs(diff) < 0.005 ? '' : 'warn';
+      const txt = Math.abs(diff) < 0.005
+        ? `已分配 ${sum.toFixed(1)} / ${total.toFixed(1)} ${currency}`
+        : `已分配 ${sum.toFixed(1)} / ${total.toFixed(1)} ${currency}（差 ${diff > 0 ? '+' : ''}${diff.toFixed(1)}）`;
+      summary = `<div class="ma-summary ${cls}">${txt}<span></span></div>`;
+    }
+
+    const rows = members.map(m => {
+      const selected = map.hasOwnProperty(m.id);
+      const isLocked = !!locked[m.id];
+      const amt = selected ? (Number(map[m.id]) || 0).toFixed(1) : '';
+      return `<div class="ma-row ${selected?'selected':''} ${isLocked?'locked':''}" data-kind="${kind}" data-mid="${m.id}">
+        <div class="ma-toggle" data-toggle="1">
+          <span class="ma-check">${selected ? '✓' : ''}</span>
+          <span class="ma-name">${escapeHtml(m.name)}${isLocked ? ' <span class="ma-locked-dot" title="手動輸入"></span>' : ''}</span>
+        </div>
+        ${selected
+          ? `<input class="ma-amount" type="number" inputmode="decimal" value="${amt}" data-amt="1" />
+             <span class="ma-cur">${currency}</span>`
+          : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="form-group">
+      <div class="ma-section-header">
+        <div><span class="ma-title">${title}</span></div>
+        <div class="ma-actions">
+          <button class="link-btn" data-action="all" data-kind="${kind}">${allSelected ? '全不選' : '全選'}</button>
+          <button class="link-btn muted" data-action="reset" data-kind="${kind}">平均分配</button>
+        </div>
+      </div>
+      <div class="ma-list">${rows}</div>
+      ${summary}
+    </div>`;
+  }
+
+  function bindMemberAmountGroup(kind){
+    const mapKey = kind === 'payer' ? 'payers' : 'shares';
+    const lockedKey = kind === 'payer' ? 'payerLocked' : 'shareLocked';
+
+    $$(`.ma-row[data-kind="${kind}"]`).forEach(row => {
+      const mid = row.dataset.mid;
+      const toggle = row.querySelector('[data-toggle]');
+      toggle.addEventListener('click', () => {
+        const map = state.form[mapKey];
+        const locked = state.form[lockedKey];
+        if (map.hasOwnProperty(mid)) {
+          delete map[mid];
+          delete locked[mid];
+        } else {
+          map[mid] = 0;
+        }
+        renderForm();
+      });
+      const amtInput = row.querySelector('[data-amt]');
+      if (amtInput) {
+        amtInput.addEventListener('input', e => {
+          const v = parseFloat(e.target.value);
+          state.form[mapKey][mid] = isNaN(v) ? 0 : v;
+          state.form[lockedKey][mid] = true;
+        });
+        amtInput.addEventListener('blur', () => { renderForm(); });
+      }
+    });
+
+    $$(`.link-btn[data-kind="${kind}"]`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const map = state.form[mapKey];
+        const locked = state.form[lockedKey];
+        if (action === 'all') {
+          const all = memberList();
+          const allSelected = Object.keys(map).length === all.length;
+          if (allSelected) {
+            Object.keys(map).forEach(k => delete map[k]);
+            Object.keys(locked).forEach(k => delete locked[k]);
+          } else {
+            all.forEach(m => { if (!map.hasOwnProperty(m.id)) map[m.id] = 0; });
+          }
+        } else if (action === 'reset') {
+          Object.keys(locked).forEach(k => delete locked[k]);
+        }
+        renderForm();
+      });
+    });
+  }
+
+  function saveRecord(){
+    const tab = state.currentTab;
+    const amount = parseFloat(state.form.amount);
+    if (!(amount > 0)) { showToast('請輸入有效金額'); return; }
+
+    if (tab === '轉賬') {
+      if (!state.form.transferFrom) { showToast('請選擇轉賬人'); return; }
+      if (!state.form.transferTo) { showToast('請選擇收款人'); return; }
+      if (state.form.transferTo === state.form.transferFrom) { showToast('收款人需與轉賬人不同'); return; }
+      const base = {
+        type: tab,
+        amount: amount,
+        currency: state.form.currency,
+        note: state.form.note || '',
+        date: todayStr(),
+        payer: state.form.transferFrom,
+        receiver: state.form.transferTo,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      };
+      tripRef.child('records').push().set(base).then(() => {
+        closeInput(); showToast('已儲存');
+      }).catch(err => showToast('儲存失敗：' + err.message));
+      return;
+    }
+
+    const payers = state.form.payers;
+    const shares = state.form.shares;
+    if (!Object.keys(payers).length) {
+      showToast(tab === '預付' ? '請選擇至少一位保管人' : '請選擇至少一位付款人');
+      return;
+    }
+    if (!Object.keys(shares).length) { showToast('請選擇至少一位參與者'); return; }
+
+    const sumPayers = Object.values(payers).reduce((s, v) => s + (Number(v) || 0), 0);
+    const sumShares = Object.values(shares).reduce((s, v) => s + (Number(v) || 0), 0);
+    if (Math.abs(sumPayers - amount) > 0.01) { showToast(`付款金額合計需等於總計（差 ${(sumPayers - amount).toFixed(1)}）`); return; }
+    if (Math.abs(sumShares - amount) > 0.01) { showToast(`參與者金額合計需等於總計（差 ${(sumShares - amount).toFixed(1)}）`); return; }
+
+    // Round all to 2 decimals before saving
+    const payersOut = {}; Object.entries(payers).forEach(([k, v]) => payersOut[k] = round2(Number(v) || 0));
+    const sharesOut = {}; Object.entries(shares).forEach(([k, v]) => sharesOut[k] = round2(Number(v) || 0));
+
+    const base = {
+      type: tab,
+      amount: amount,
+      currency: state.form.currency,
+      note: state.form.note || '',
+      date: todayStr(),
+      payers: payersOut,
+      shares: sharesOut,
+      createdAt: firebase.database.ServerValue.TIMESTAMP
+    };
+    if (tab === '支出') base.category = state.selectedCategory;
+
+    tripRef.child('records').push().set(base).then(() => {
+      closeInput(); showToast('已儲存');
+    }).catch(err => showToast('儲存失敗：' + err.message));
+  }
+
+  // ---------- Tabs ----------
+  $$('#tabs .tab').forEach(t => t.addEventListener('click', () => {
+    state.currentTab = t.dataset.tab;
+    $$('#tabs .tab').forEach(x => x.classList.toggle('active', x === t));
+    // Reset selection-related fields but preserve amount/note/currency for convenience
+    const f = state.form;
+    f.payers = {};
+    f.payerLocked = {};
+    f.shares = {};
+    f.shareLocked = {};
+    f.transferFrom = '';
+    f.transferTo = '';
+    if (state.currentTab !== '轉賬') {
+      memberList().forEach(m => f.shares[m.id] = 0);
+    }
+    renderForm();
+  }));
+
+  $('#fab').addEventListener('click', () => {
+    if (!state.meta || !memberList().length) { showToast('請先設定成員'); return; }
+    openInput();
+  });
+  $('#closeInput').addEventListener('click', closeInput);
+  $('#saveBtn').addEventListener('click', saveRecord);
+
+  // ---------- Settings ----------
+  function renderSettings(){
+    const list = memberList();
+    const container = $('#settingsMembers');
+    container.innerHTML = list.map(m => `<div class="member-row">
+      <input data-mid="${m.id}" value="${escapeHtml(m.name)}" />
+      <button class="remove-btn" data-rm="${m.id}">刪除</button>
+    </div>`).join('') || '<div class="empty">尚未新增成員</div>';
+
+    $$('#settingsMembers input').forEach(inp => {
+      inp.addEventListener('blur', () => {
+        const id = inp.dataset.mid;
+        const v = inp.value.trim();
+        if (!v) { inp.value = memberName(id); return; }
+        tripRef.child('meta/members/' + id + '/name').set(v);
+      });
+    });
+    $$('#settingsMembers [data-rm]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.rm;
+        if (confirm('確定刪除此成員？相關記錄不會被刪除。')) {
+          tripRef.child('meta/members/' + id).remove();
+        }
+      });
+    });
+    $('#shareUrl').textContent = location.href;
+  }
+
+  $('#settingsBtn').addEventListener('click', () => {
+    renderSettings();
+    $('#settingsModal').classList.add('open');
+  });
+  $('#settingsClose').addEventListener('click', () => $('#settingsModal').classList.remove('open'));
+  $('#settingsAddMember').addEventListener('click', () => {
+    const name = prompt('成員名稱');
+    if (name && name.trim()) {
+      const id = randomId(6);
+      tripRef.child('meta/members/' + id).set({ name: name.trim() });
+    }
+  });
+  $('#copyUrl').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => showToast('已複製連結'));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      showToast('已複製連結');
+    }
+  });
+
+  // ---------- Setup flow ----------
+  let setupMembers = ['', ''];
+  function renderSetup(){
+    $('#setupMembers').innerHTML = setupMembers.map((n, i) => `<div class="member-row">
+      <input data-idx="${i}" value="${escapeHtml(n)}" placeholder="成員 ${i+1}" />
+      ${setupMembers.length > 2 ? `<button class="remove-btn" data-rmi="${i}">刪除</button>` : ''}
+    </div>`).join('');
+    $$('#setupMembers input').forEach(inp => {
+      inp.addEventListener('input', () => { setupMembers[+inp.dataset.idx] = inp.value; });
+    });
+    $$('#setupMembers [data-rmi]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setupMembers.splice(+btn.dataset.rmi, 1);
+        renderSetup();
+      });
+    });
+  }
+  $('#setupAddMember').addEventListener('click', () => {
+    setupMembers.push('');
+    renderSetup();
+  });
+  $('#setupConfirm').addEventListener('click', () => {
+    const name = $('#setupName').value.trim();
+    const names = setupMembers.map(s => s.trim()).filter(Boolean);
+    if (!name) { showToast('請輸入旅程名稱'); return; }
+    if (names.length < 2) { showToast('請至少新增 2 位成員'); return; }
+    const members = {};
+    names.forEach(n => { members[randomId(6)] = { name: n }; });
+    tripRef.child('meta').set({
+      name: name,
+      currency: 'JPY',
+      members: members
+    }).then(() => {
+      $('#setupModal').classList.remove('open');
+    });
+  });
+
+  // ---------- Firebase listeners ----------
+  let metaLoaded = false, recordsLoaded = false;
+  function maybeShowSetup(){
+    if (metaLoaded && !state.meta) {
+      renderSetup();
+      $('#setupModal').classList.add('open');
+    }
+  }
+
+  tripRef.child('meta').on('value', snap => {
+    state.meta = snap.val();
+    metaLoaded = true;
+    if (state.meta) {
+      $('#setupModal').classList.remove('open');
+      renderGroupName();
+      renderBalances();
+      renderRecords();
+      if ($('#settingsModal').classList.contains('open')) renderSettings();
+    } else {
+      maybeShowSetup();
+    }
+  });
+
+  tripRef.child('records').on('value', snap => {
+    state.records = snap.val() || {};
+    recordsLoaded = true;
+    if (state.meta) {
+      renderBalances();
+      renderRecords();
+    }
+  });
+
+  // Initial icons
+  renderIcons();
+
+  // Close modal/overlay on backdrop click
+  $('#inputOverlay').addEventListener('click', e => {
+    if (e.target.id === 'inputOverlay') closeInput();
+  });
+  $('#settingsModal').addEventListener('click', e => {
+    if (e.target.id === 'settingsModal') $('#settingsModal').classList.remove('open');
+  });
+
+  // Update URL hash if changed externally
+  window.addEventListener('hashchange', () => location.reload());
+})();
+</script>
+</body>
+</html>
