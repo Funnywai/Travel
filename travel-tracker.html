@@ -437,6 +437,114 @@
   }
   .ma-summary.warn { color: var(--error); }
 
+  /* Date group headers in records */
+  .date-group { margin-bottom: 14px; }
+  .date-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 4px 6px 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .date-header .date-total { font-weight: 500; }
+
+  /* Section total bar */
+  .total-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .total-bar strong { color: var(--text); font-weight: 600; }
+
+  /* Edit button in record detail */
+  .record-actions {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .record-edit { color: var(--primary); font-size: 13px; font-weight: 600; }
+  .record-delete { color: var(--error); font-size: 13px; }
+
+  /* Lock dot — interactive */
+  .ma-locked-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 9px;
+    cursor: pointer;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  /* Inline add-member row */
+  .add-inline-row {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .add-inline-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  .add-inline-row input:focus { border-color: var(--primary); }
+  .add-inline-row button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+
+  /* Settlement card */
+  .settle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .settle-row + .settle-row { border-top: 1px solid var(--border); }
+  .settle-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .settle-arrow { color: var(--text-muted); font-size: 13px; }
+  .settle-amount { font-weight: 700; color: var(--primary); }
+  .settle-name { font-weight: 500; }
+
+  .save-btn:disabled { background: #b8c0c4; cursor: wait; }
+
+  /* Quick action chip row above payer/share lists */
+  .quick-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px 4px;
+    flex-wrap: wrap;
+  }
+  .quick-chip {
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   /* Modal (setup, settings) */
   .modal {
     position: fixed;
@@ -578,11 +686,15 @@
     </div>
   </div>
 
+  <div class="section" id="settleSection" style="display:none">
+    <h2 class="section-title">結算建議</h2>
+    <div class="card" id="settleList"></div>
+  </div>
+
   <div class="section">
     <h2 class="section-title">消費明細</h2>
-    <div class="card" id="recordList">
-      <div class="skeleton skel-row"></div>
-      <div class="skeleton skel-row"></div>
+    <div id="recordList">
+      <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
     </div>
   </div>
 
@@ -627,7 +739,10 @@
     <h2 class="modal-title">設定</h2>
     <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">成員</h3>
     <div id="settingsMembers"></div>
-    <button class="btn-ghost" id="settingsAddMember">+ 新增成員</button>
+    <div class="add-inline-row">
+      <input id="newMemberName" placeholder="新成員名稱" />
+      <button id="settingsAddMember">新增</button>
+    </div>
     <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">分享連結</h3>
     <div class="url-box">
       <span class="url-text" id="shareUrl"></span>
@@ -787,66 +902,175 @@
     }).join('');
   }
 
-  // ---------- Render: records ----------
+  // ---------- Render: settlement (debt simplification) ----------
+  function simplifyDebts(balances){
+    // Greedy min-transactions algorithm.
+    const pos = [], neg = [];
+    Object.entries(balances).forEach(([id, v]) => {
+      const r = round2(v);
+      if (r > 0.005) pos.push({ id, amt: r });
+      else if (r < -0.005) neg.push({ id, amt: -r });
+    });
+    pos.sort((a, b) => b.amt - a.amt);
+    neg.sort((a, b) => b.amt - a.amt);
+    const txs = [];
+    let i = 0, j = 0;
+    while (i < neg.length && j < pos.length) {
+      const pay = Math.min(neg[i].amt, pos[j].amt);
+      txs.push({ from: neg[i].id, to: pos[j].id, amount: round2(pay) });
+      neg[i].amt = round2(neg[i].amt - pay);
+      pos[j].amt = round2(pos[j].amt - pay);
+      if (neg[i].amt < 0.005) i++;
+      if (pos[j].amt < 0.005) j++;
+    }
+    return txs;
+  }
+
+  function renderSettlement(){
+    const section = $('#settleSection');
+    const container = $('#settleList');
+    if (!memberList().length || !Object.keys(state.records).length) {
+      section.style.display = 'none';
+      return;
+    }
+    const balances = computeBalances();
+    const txs = simplifyDebts(balances);
+    if (!txs.length) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = '';
+    const currency = (state.meta && state.meta.currency) || 'JPY';
+    container.innerHTML = txs.map(tx => `<div class="settle-row">
+      <div class="settle-flow">
+        <span class="settle-name">${escapeHtml(memberName(tx.from))}</span>
+        <span class="settle-arrow">→</span>
+        <span class="settle-name">${escapeHtml(memberName(tx.to))}</span>
+      </div>
+      <div class="settle-amount">${tx.amount.toFixed(1)} ${currency}</div>
+    </div>`).join('');
+  }
   function renderRecords(){
     const container = $('#recordList');
     const entries = Object.entries(state.records)
-      .sort((a,b) => (b[1].date || '').localeCompare(a[1].date || '') || b[0].localeCompare(a[0]));
+      .sort((a,b) => (b[1].date || '').localeCompare(a[1].date || '')
+        || (b[1].createdAt || 0) - (a[1].createdAt || 0)
+        || b[0].localeCompare(a[0]));
     if (!entries.length) {
-      container.innerHTML = '<div class="empty">還沒有任何記錄，點擊 + 新增第一筆！</div>';
+      container.innerHTML = '<div class="card"><div class="empty">還沒有任何記錄，點擊 + 新增第一筆！</div></div>';
       return;
     }
-    container.innerHTML = entries.map(([id, r]) => {
-      const typeClass = r.type === '預付' ? 't-prepaid' : r.type === '轉賬' ? 't-transfer' : '';
-      const icon = r.type === '支出' ? (CAT_BY_KEY[r.category] || '📦')
-        : r.type === '預付' ? '💼' : '🔄';
-      let detail = '';
-      if (r.type === '轉賬') {
-        const from = r.payer || r.transferFrom;
-        const to = r.receiver || r.transferTo;
-        detail = `${escapeHtml(memberName(from))} → ${escapeHtml(memberName(to))}`;
-      } else {
-        const lbl = r.type === '預付' ? '保管人' : '付款人';
-        if (r.payers && r.shares) {
-          const payerLines = Object.entries(r.payers)
-            .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
-          const shareLines = Object.entries(r.shares)
-            .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
-          detail = `${lbl}：${payerLines}<br>參與者：${shareLines}`;
-        } else {
-          const parts = (r.participants || []).map(memberName).map(escapeHtml).join('、');
-          detail = `${lbl}：${escapeHtml(memberName(r.payer))}<br>參與者：${parts}`;
-        }
-      }
-      return `<div class="record-row" data-id="${id}">
-          <div class="record-icon"><span style="font-size:20px">${icon}</span></div>
-          <div class="record-info">
-            <div class="record-title">${escapeHtml(r.note || r.category || r.type)}</div>
-            <div class="record-sub">
-              <span class="type-badge ${typeClass}">${r.type}</span>
-              <span>${escapeHtml(r.date || '')}</span>
-            </div>
-          </div>
-          <div class="record-amount">${r.amount.toFixed(1)} ${r.currency}</div>
+
+    // Grand totals by currency (expenses only — 預付/轉賬 excluded from "total spent")
+    const grand = {};
+    entries.forEach(([id, r]) => {
+      if (r.type === '支出') grand[r.currency] = (grand[r.currency] || 0) + (r.amount || 0);
+    });
+    const grandStr = Object.entries(grand).map(([cur, v]) => `${v.toFixed(1)} ${cur}`).join(' · ') || '—';
+
+    // Group by date
+    const groups = {};
+    entries.forEach(([id, r]) => {
+      const d = r.date || '未知日期';
+      (groups[d] = groups[d] || []).push([id, r]);
+    });
+    const sortedDates = Object.keys(groups).sort((a,b) => b.localeCompare(a));
+
+    let html = `<div class="total-bar"><span>共 ${entries.length} 筆</span><span>支出總計：<strong>${grandStr}</strong></span></div>`;
+
+    html += sortedDates.map(date => {
+      const recs = groups[date];
+      const dayTotals = {};
+      recs.forEach(([id, r]) => {
+        if (r.type === '支出') dayTotals[r.currency] = (dayTotals[r.currency] || 0) + (r.amount || 0);
+      });
+      const dayTotalStr = Object.entries(dayTotals).map(([c, v]) => `${v.toFixed(1)} ${c}`).join(' · ');
+      const headerLabel = formatDateLabel(date);
+      const rowsHtml = recs.map(([id, r]) => recordRowHtml(id, r)).join('');
+      return `<div class="date-group">
+        <div class="date-header">
+          <span>${escapeHtml(headerLabel)}</span>
+          ${dayTotalStr ? `<span class="date-total">${dayTotalStr}</span>` : ''}
         </div>
-        <div class="record-detail">
-          ${detail}
-          <div><button class="record-delete" data-del="${id}">🗑 刪除</button></div>
-        </div>`;
+        <div class="card">${rowsHtml}</div>
+      </div>`;
     }).join('');
 
-    $$('#recordList .record-row').forEach(row => {
-      row.addEventListener('click', () => row.classList.toggle('expanded'));
-    });
-    $$('#recordList [data-del]').forEach(btn => {
-      btn.addEventListener('click', e => {
+    container.innerHTML = html;
+
+    // Event delegation
+    container.onclick = (e) => {
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn) {
         e.stopPropagation();
-        const id = btn.dataset.del;
-        if (confirm('確定刪除此記錄？')) {
-          tripRef.child('records/' + id).remove();
-        }
-      });
-    });
+        const id = delBtn.dataset.del;
+        if (confirm('確定刪除此記錄？')) tripRef.child('records/' + id).remove();
+        return;
+      }
+      const editBtn = e.target.closest('[data-edit]');
+      if (editBtn) {
+        e.stopPropagation();
+        openEdit(editBtn.dataset.edit);
+        return;
+      }
+      const row = e.target.closest('.record-row');
+      if (row) row.classList.toggle('expanded');
+    };
+  }
+
+  function recordRowHtml(id, r){
+    const typeClass = r.type === '預付' ? 't-prepaid' : r.type === '轉賬' ? 't-transfer' : '';
+    const icon = r.type === '支出' ? (CAT_BY_KEY[r.category] || '📦')
+      : r.type === '預付' ? '💼' : '🔄';
+    let detail = '';
+    if (r.type === '轉賬') {
+      const from = r.payer || r.transferFrom;
+      const to = r.receiver || r.transferTo;
+      detail = `${escapeHtml(memberName(from))} → ${escapeHtml(memberName(to))}`;
+    } else {
+      const lbl = r.type === '預付' ? '保管人' : '付款人';
+      if (r.payers && r.shares) {
+        const payerLines = Object.entries(r.payers)
+          .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
+        const shareLines = Object.entries(r.shares)
+          .map(([id, amt]) => `${escapeHtml(memberName(id))} ${Number(amt).toFixed(1)}`).join('、');
+        detail = `${lbl}：${payerLines}<br>參與者：${shareLines}`;
+      } else {
+        const parts = (r.participants || []).map(memberName).map(escapeHtml).join('、');
+        detail = `${lbl}：${escapeHtml(memberName(r.payer))}<br>參與者：${parts}`;
+      }
+    }
+    return `<div class="record-row" data-id="${id}">
+        <div class="record-icon"><span style="font-size:20px">${icon}</span></div>
+        <div class="record-info">
+          <div class="record-title">${escapeHtml(r.note || r.category || r.type)}</div>
+          <div class="record-sub">
+            <span class="type-badge ${typeClass}">${r.type}</span>
+            ${r.category ? `<span>${escapeHtml(r.category)}</span>` : ''}
+          </div>
+        </div>
+        <div class="record-amount">${(r.amount || 0).toFixed(1)} ${r.currency}</div>
+      </div>
+      <div class="record-detail">
+        ${detail}
+        <div class="record-actions">
+          <button class="record-edit" data-edit="${id}">✎ 編輯</button>
+          <button class="record-delete" data-del="${id}">🗑 刪除</button>
+        </div>
+      </div>`;
+  }
+
+  function formatDateLabel(iso){
+    if (!iso || iso === '未知日期') return '未知日期';
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y) return iso;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const date = new Date(y, m-1, d);
+    const diffDays = Math.round((today - date) / 86400000);
+    if (diffDays === 0) return `今天 · ${m}月${d}日`;
+    if (diffDays === 1) return `昨天 · ${m}月${d}日`;
+    if (diffDays === -1) return `明天 · ${m}月${d}日`;
+    return `${y}年${m}月${d}日`;
   }
 
   function escapeHtml(s){
@@ -882,19 +1106,20 @@
   // ---------- Input form rendering ----------
   function defaultForm(){
     const all = memberList();
-    // Default participants: everyone selected, payer: nobody (user must pick)
     const shares = {};
     all.forEach(m => shares[m.id] = 0);
     return {
       amount: '',
-      note: formatDateZh(new Date()),
+      note: '',
       currency: (state.meta && state.meta.currency) || 'JPY',
+      date: todayStr(),
       payers: {},
       payerLocked: {},
       shares: shares,
       shareLocked: {},
       transferFrom: '',
-      transferTo: ''
+      transferTo: '',
+      editingId: null
     };
   }
 
@@ -906,6 +1131,42 @@
     renderForm();
     $('#inputOverlay').classList.add('open');
   }
+
+  function openEdit(recordId){
+    const r = state.records[recordId];
+    if (!r) return;
+    state.form = defaultForm();
+    state.currentTab = r.type;
+    state.form.editingId = recordId;
+    state.form.amount = String(r.amount || '');
+    state.form.note = r.note || '';
+    state.form.currency = r.currency || 'JPY';
+    state.form.date = r.date || todayStr();
+    if (r.type === '轉賬') {
+      state.form.transferFrom = r.payer || r.transferFrom || '';
+      state.form.transferTo = r.receiver || r.transferTo || '';
+    } else {
+      state.form.payers = {};
+      state.form.shares = {};
+      state.form.payerLocked = {};
+      state.form.shareLocked = {};
+      if (r.payers && r.shares) {
+        Object.entries(r.payers).forEach(([id, amt]) => { state.form.payers[id] = Number(amt); state.form.payerLocked[id] = true; });
+        Object.entries(r.shares).forEach(([id, amt]) => { state.form.shares[id] = Number(amt); state.form.shareLocked[id] = true; });
+      } else if (r.payer && r.participants) {
+        // Legacy → migrate to new format
+        state.form.payers[r.payer] = Number(r.amount) || 0;
+        state.form.payerLocked[r.payer] = true;
+        const share = (Number(r.amount) || 0) / r.participants.length;
+        r.participants.forEach(id => { state.form.shares[id] = round2(share); });
+      }
+      if (r.type === '支出') state.selectedCategory = r.category || '餐飲';
+    }
+    $$('#tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.currentTab));
+    renderForm();
+    $('#inputOverlay').classList.add('open');
+  }
+
   function closeInput(){
     $('#inputOverlay').classList.remove('open');
   }
@@ -939,6 +1200,14 @@
     const members = memberList();
     const total = parseFloat(state.form.amount) || 0;
 
+    // Disable tab switch while editing
+    $$('#tabs .tab').forEach(t => {
+      t.style.opacity = state.form.editingId ? '0.5' : '';
+      t.style.pointerEvents = state.form.editingId ? 'none' : '';
+      t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    $('#saveBtn').textContent = state.form.editingId ? '更新' : '儲存';
+
     // Re-balance unlocked entries each render based on current total.
     if (tab !== '轉賬') {
       redistribute(state.form.payers, state.form.payerLocked, total);
@@ -965,7 +1234,10 @@
         <input class="form-input" id="f-amount" type="number" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
       </div>
       <div class="form-row"><div class="form-label">備註</div>
-        <input class="form-input" id="f-note" placeholder="備註" value="${escapeHtml(state.form.note)}" />
+        <input class="form-input" id="f-note" placeholder="備註（可留空）" value="${escapeHtml(state.form.note)}" />
+      </div>
+      <div class="form-row"><div class="form-label">日期</div>
+        <input class="form-input" id="f-date" type="date" value="${state.form.date}" />
       </div>
       <div class="form-row"><div class="form-label">貨幣</div>${currencySelect}</div>
     </div>`;
@@ -1018,6 +1290,7 @@
       if (el) { el.focus(); try { el.setSelectionRange(sel, sel); } catch(_){} }
     });
     $('#f-note').addEventListener('input', e => state.form.note = e.target.value);
+    $('#f-date').addEventListener('change', e => state.form.date = e.target.value);
     $('#f-currency').addEventListener('change', e => { state.form.currency = e.target.value; renderForm(); });
 
     if (tab === '支出') {
@@ -1052,10 +1325,16 @@
 
     let summary = '';
     if (ids.length > 0 && total > 0) {
-      const cls = Math.abs(diff) < 0.005 ? '' : 'warn';
-      const txt = Math.abs(diff) < 0.005
-        ? `已分配 ${sum.toFixed(1)} / ${total.toFixed(1)} ${currency}`
-        : `已分配 ${sum.toFixed(1)} / ${total.toFixed(1)} ${currency}（差 ${diff > 0 ? '+' : ''}${diff.toFixed(1)}）`;
+      let txt, cls = '';
+      if (Math.abs(diff) < 0.005) {
+        txt = `✓ 已分配 ${sum.toFixed(1)} ${currency}`;
+      } else if (diff < 0) {
+        txt = `還需分配 ${(-diff).toFixed(1)} ${currency}`;
+        cls = 'warn';
+      } else {
+        txt = `超出 ${diff.toFixed(1)} ${currency}`;
+        cls = 'warn';
+      }
       summary = `<div class="ma-summary ${cls}">${txt}<span></span></div>`;
     }
 
@@ -1066,7 +1345,8 @@
       return `<div class="ma-row ${selected?'selected':''} ${isLocked?'locked':''}" data-kind="${kind}" data-mid="${m.id}">
         <div class="ma-toggle" data-toggle="1">
           <span class="ma-check">${selected ? '✓' : ''}</span>
-          <span class="ma-name">${escapeHtml(m.name)}${isLocked ? ' <span class="ma-locked-dot" title="手動輸入"></span>' : ''}</span>
+          <span class="ma-name">${escapeHtml(m.name)}</span>
+          ${isLocked ? '<span class="ma-locked-dot" data-unlock="1" title="已手動輸入，點擊解除鎖定">🔒</span>' : ''}
         </div>
         ${selected
           ? `<input class="ma-amount" type="number" inputmode="decimal" value="${amt}" data-amt="1" />
@@ -1095,16 +1375,29 @@
     $$(`.ma-row[data-kind="${kind}"]`).forEach(row => {
       const mid = row.dataset.mid;
       const toggle = row.querySelector('[data-toggle]');
-      toggle.addEventListener('click', () => {
+      const unlockDot = row.querySelector('[data-unlock]');
+      if (unlockDot) {
+        unlockDot.addEventListener('click', e => {
+          e.stopPropagation();
+          delete state.form[lockedKey][mid];
+          renderForm();
+        });
+      }
+      toggle.addEventListener('click', e => {
+        if (e.target.closest('[data-unlock]')) return;
         const map = state.form[mapKey];
         const locked = state.form[lockedKey];
         if (map.hasOwnProperty(mid)) {
           delete map[mid];
           delete locked[mid];
+          renderForm();
         } else {
           map[mid] = 0;
+          renderForm();
+          // Focus the newly added row's input
+          const newInput = document.querySelector(`.ma-row[data-kind="${kind}"][data-mid="${mid}"] [data-amt]`);
+          if (newInput) { newInput.focus(); newInput.select(); }
         }
-        renderForm();
       });
       const amtInput = row.querySelector('[data-amt]');
       if (amtInput) {
@@ -1113,6 +1406,7 @@
           state.form[mapKey][mid] = isNaN(v) ? 0 : v;
           state.form[lockedKey][mid] = true;
         });
+        amtInput.addEventListener('focus', e => e.target.select());
         amtInput.addEventListener('blur', () => { renderForm(); });
       }
     });
@@ -1144,58 +1438,74 @@
     const amount = parseFloat(state.form.amount);
     if (!(amount > 0)) { showToast('請輸入有效金額'); return; }
 
+    const editingId = state.form.editingId;
+    const date = state.form.date || todayStr();
+
+    let base;
     if (tab === '轉賬') {
       if (!state.form.transferFrom) { showToast('請選擇轉賬人'); return; }
       if (!state.form.transferTo) { showToast('請選擇收款人'); return; }
       if (state.form.transferTo === state.form.transferFrom) { showToast('收款人需與轉賬人不同'); return; }
-      const base = {
+      base = {
         type: tab,
-        amount: amount,
+        amount,
         currency: state.form.currency,
         note: state.form.note || '',
-        date: todayStr(),
+        date,
         payer: state.form.transferFrom,
-        receiver: state.form.transferTo,
-        createdAt: firebase.database.ServerValue.TIMESTAMP
+        receiver: state.form.transferTo
       };
-      tripRef.child('records').push().set(base).then(() => {
-        closeInput(); showToast('已儲存');
-      }).catch(err => showToast('儲存失敗：' + err.message));
-      return;
+    } else {
+      const payers = state.form.payers;
+      const shares = state.form.shares;
+      if (!Object.keys(payers).length) {
+        showToast(tab === '預付' ? '請選擇至少一位保管人' : '請選擇至少一位付款人');
+        return;
+      }
+      if (!Object.keys(shares).length) { showToast('請選擇至少一位參與者'); return; }
+      const sumPayers = Object.values(payers).reduce((s, v) => s + (Number(v) || 0), 0);
+      const sumShares = Object.values(shares).reduce((s, v) => s + (Number(v) || 0), 0);
+      if (Math.abs(sumPayers - amount) > 0.01) { showToast(`付款金額合計需等於總計（差 ${(sumPayers - amount).toFixed(1)}）`); return; }
+      if (Math.abs(sumShares - amount) > 0.01) { showToast(`參與者金額合計需等於總計（差 ${(sumShares - amount).toFixed(1)}）`); return; }
+      const payersOut = {}; Object.entries(payers).forEach(([k, v]) => payersOut[k] = round2(Number(v) || 0));
+      const sharesOut = {}; Object.entries(shares).forEach(([k, v]) => sharesOut[k] = round2(Number(v) || 0));
+      base = {
+        type: tab,
+        amount,
+        currency: state.form.currency,
+        note: state.form.note || '',
+        date,
+        payers: payersOut,
+        shares: sharesOut
+      };
+      if (tab === '支出') base.category = state.selectedCategory;
     }
 
-    const payers = state.form.payers;
-    const shares = state.form.shares;
-    if (!Object.keys(payers).length) {
-      showToast(tab === '預付' ? '請選擇至少一位保管人' : '請選擇至少一位付款人');
-      return;
+    const saveBtn = $('#saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '儲存中...';
+
+    let promise;
+    if (editingId) {
+      // Preserve original createdAt; clear stale fields by overwriting cleanly
+      const existing = state.records[editingId] || {};
+      base.createdAt = existing.createdAt || firebase.database.ServerValue.TIMESTAMP;
+      base.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('records/' + editingId).set(base);
+    } else {
+      base.createdAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('records').push().set(base);
     }
-    if (!Object.keys(shares).length) { showToast('請選擇至少一位參與者'); return; }
 
-    const sumPayers = Object.values(payers).reduce((s, v) => s + (Number(v) || 0), 0);
-    const sumShares = Object.values(shares).reduce((s, v) => s + (Number(v) || 0), 0);
-    if (Math.abs(sumPayers - amount) > 0.01) { showToast(`付款金額合計需等於總計（差 ${(sumPayers - amount).toFixed(1)}）`); return; }
-    if (Math.abs(sumShares - amount) > 0.01) { showToast(`參與者金額合計需等於總計（差 ${(sumShares - amount).toFixed(1)}）`); return; }
-
-    // Round all to 2 decimals before saving
-    const payersOut = {}; Object.entries(payers).forEach(([k, v]) => payersOut[k] = round2(Number(v) || 0));
-    const sharesOut = {}; Object.entries(shares).forEach(([k, v]) => sharesOut[k] = round2(Number(v) || 0));
-
-    const base = {
-      type: tab,
-      amount: amount,
-      currency: state.form.currency,
-      note: state.form.note || '',
-      date: todayStr(),
-      payers: payersOut,
-      shares: sharesOut,
-      createdAt: firebase.database.ServerValue.TIMESTAMP
-    };
-    if (tab === '支出') base.category = state.selectedCategory;
-
-    tripRef.child('records').push().set(base).then(() => {
-      closeInput(); showToast('已儲存');
-    }).catch(err => showToast('儲存失敗：' + err.message));
+    promise.then(() => {
+      closeInput();
+      showToast(editingId ? '已更新' : '已儲存');
+    }).catch(err => {
+      showToast('儲存失敗：' + err.message);
+    }).finally(() => {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '儲存';
+    });
   }
 
   // ---------- Tabs ----------
@@ -1257,10 +1567,18 @@
   });
   $('#settingsClose').addEventListener('click', () => $('#settingsModal').classList.remove('open'));
   $('#settingsAddMember').addEventListener('click', () => {
-    const name = prompt('成員名稱');
-    if (name && name.trim()) {
-      const id = randomId(6);
-      tripRef.child('meta/members/' + id).set({ name: name.trim() });
+    const inp = $('#newMemberName');
+    const name = (inp.value || '').trim();
+    if (!name) { inp.focus(); return; }
+    const id = randomId(6);
+    tripRef.child('meta/members/' + id).set({ name }).then(() => {
+      inp.value = '';
+      inp.focus();
+    });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'newMemberName') {
+      $('#settingsAddMember').click();
     }
   });
   $('#copyUrl').addEventListener('click', () => {
@@ -1297,10 +1615,14 @@
     renderSetup();
   });
   $('#setupConfirm').addEventListener('click', () => {
+    const btn = $('#setupConfirm');
+    if (btn.disabled) return;
     const name = $('#setupName').value.trim();
     const names = setupMembers.map(s => s.trim()).filter(Boolean);
     if (!name) { showToast('請輸入旅程名稱'); return; }
     if (names.length < 2) { showToast('請至少新增 2 位成員'); return; }
+    btn.disabled = true;
+    btn.textContent = '建立中...';
     const members = {};
     names.forEach(n => { members[randomId(6)] = { name: n }; });
     tripRef.child('meta').set({
@@ -1309,6 +1631,11 @@
       members: members
     }).then(() => {
       $('#setupModal').classList.remove('open');
+    }).catch(err => {
+      showToast('建立失敗：' + err.message);
+    }).finally(() => {
+      btn.disabled = false;
+      btn.textContent = '建立';
     });
   });
 
@@ -1329,6 +1656,7 @@
       renderGroupName();
       renderBalances();
       renderRecords();
+      renderSettlement();
       if ($('#settingsModal').classList.contains('open')) renderSettings();
     } else {
       maybeShowSetup();
@@ -1341,6 +1669,7 @@
     if (state.meta) {
       renderBalances();
       renderRecords();
+      renderSettlement();
     }
   });
 
