@@ -127,6 +127,8 @@
   .balance-name { font-weight: 600; }
   .balance-right { text-align: right; }
   .balance-amount { font-weight: 700; font-size: 16px; }
+  .balance-amount .balance-line { font-weight: 700; font-size: 15px; line-height: 1.3; }
+  .balance-amount .balance-line + .balance-line { margin-top: 2px; }
   .balance-status { font-size: 12px; margin-top: 2px; }
   .status-neutral { color: var(--text-muted); }
   .status-owe { color: var(--error); }
@@ -760,6 +762,12 @@
       <input id="newMemberName" placeholder="新成員名稱" />
       <button id="settingsAddMember">新增</button>
     </div>
+    <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">顯示貨幣</h3>
+    <select id="displayCurrency" class="text-input" style="margin-bottom:6px">
+      <option value="">原始貨幣（不轉換）</option>
+    </select>
+    <div id="rateStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:10px"></div>
+
     <h3 style="font-size:14px;color:var(--text-muted);margin:16px 0 6px">分享連結</h3>
     <div class="url-box">
       <span class="url-text" id="shareUrl"></span>
@@ -813,7 +821,89 @@
     }
   };
 
-  const CURRENCIES = ['JPY','HKD','USD','TWD','KRW','EUR'];
+  const CURRENCIES = ['JPY','HKD','TWD','KRW'];
+
+  // ---------- Currency conversion (in-memory only; no storage) ----------
+  // displayCurrency: '' = no conversion (use original), else a code like 'HKD'.
+  // rates: { base: { code: rate } } — fetched lazily.
+  state.displayCurrency = '';
+  state.rates = {};       // base -> { code: rate }
+  state.rateLoading = false;
+  state.rateError = '';
+
+  async function ensureRatesFor(base){
+    if (!base) return null;
+    if (state.rates[base]) return state.rates[base];
+    try {
+      const res = await fetch(`https://api.exchangerate.fun/latest?base=${encodeURIComponent(base)}`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data || !data.rates) throw new Error('回應格式錯誤');
+      state.rates[base] = data.rates;
+      return data.rates;
+    } catch (err) {
+      state.rateError = err.message || String(err);
+      return null;
+    }
+  }
+
+  function convert(amount, from, to){
+    if (!to || !from || from === to) return { value: amount, ok: true };
+    const table = state.rates[from];
+    if (!table) return { value: amount, ok: false };
+    const r = table[to];
+    if (typeof r !== 'number') return { value: amount, ok: false };
+    return { value: amount * r, ok: true };
+  }
+
+  // Sum amounts across currencies into the display currency. Returns a string.
+  function fmtSum(perCurrency){
+    const display = state.displayCurrency;
+    const entries = Object.entries(perCurrency);
+    if (!display) {
+      return entries.length ? entries.map(([c, v]) => `${v.toFixed(1)} ${c}`).join(' · ') : '—';
+    }
+    let total = 0, allOk = true;
+    for (const [c, v] of entries) {
+      const { value, ok } = convert(v, c, display);
+      if (!ok) allOk = false;
+      total += value;
+    }
+    return `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}`;
+  }
+
+  async function loadAllRates(){
+    if (!state.displayCurrency) { renderAll(); return; }
+    state.rateLoading = true;
+    updateRateStatus();
+    const bases = new Set();
+    Object.values(state.records || {}).forEach(r => { if (r && r.currency) bases.add(r.currency); });
+    bases.add(state.displayCurrency);
+    state.rateError = '';
+    await Promise.all(Array.from(bases).map(b => ensureRatesFor(b)));
+    state.rateLoading = false;
+    updateRateStatus();
+    renderAll();
+  }
+
+  function updateRateStatus(){
+    const el = $('#rateStatus');
+    if (!el) return;
+    if (!state.displayCurrency) { el.textContent = ''; return; }
+    if (state.rateLoading) { el.textContent = '正在取得匯率...'; return; }
+    if (state.rateError) { el.textContent = '匯率取得失敗：' + state.rateError; el.style.color = 'var(--error)'; return; }
+    el.style.color = 'var(--text-muted)';
+    el.textContent = `已使用即時匯率（exchangerate.fun）轉換為 ${state.displayCurrency}`;
+  }
+
+  function renderAll(){
+    if (state.meta) {
+      renderBalances();
+      renderRecords();
+      renderSettlement();
+    }
+  }
+
   const CATEGORIES = [
     { key:'餐飲', emoji:'🍜' },
     { key:'交通', emoji:'🚌' },
@@ -860,36 +950,60 @@
   }
 
   // ---------- Balance calc ----------
-  function computeBalances(){
+  // Returns: { [memberId]: { [currency]: amount } } — preserves per-currency precision.
+  function computeBalancesByCurrency(){
     const balances = {};
-    memberList().forEach(m => balances[m.id] = 0);
+    memberList().forEach(m => balances[m.id] = {});
+    const add = (id, cur, amt) => {
+      if (!balances[id]) return;
+      balances[id][cur] = (balances[id][cur] || 0) + amt;
+    };
     Object.values(state.records).forEach(r => {
       if (!r) return;
+      const cur = r.currency || 'JPY';
       if (r.type === '支出' || r.type === '預付') {
-        // New format: payers map + shares map
         if (r.payers && r.shares) {
-          Object.entries(r.payers).forEach(([id, amt]) => {
-            if (balances.hasOwnProperty(id)) balances[id] += Number(amt) || 0;
-          });
-          Object.entries(r.shares).forEach(([id, amt]) => {
-            if (balances.hasOwnProperty(id)) balances[id] -= Number(amt) || 0;
-          });
+          Object.entries(r.payers).forEach(([id, amt]) => add(id, cur, Number(amt) || 0));
+          Object.entries(r.shares).forEach(([id, amt]) => add(id, cur, -(Number(amt) || 0)));
         } else {
-          // Legacy: single payer + equal participants
           const parts = (r.participants || []).filter(p => balances.hasOwnProperty(p));
           if (!parts.length || !balances.hasOwnProperty(r.payer)) return;
-          const share = r.amount / parts.length;
-          balances[r.payer] += r.amount;
-          parts.forEach(p => balances[p] -= share);
+          const share = (r.amount || 0) / parts.length;
+          add(r.payer, cur, r.amount || 0);
+          parts.forEach(p => add(p, cur, -share));
         }
       } else if (r.type === '轉賬') {
         const from = r.payer || r.transferFrom;
         const to = r.receiver || r.transferTo;
-        if (balances.hasOwnProperty(from)) balances[from] += r.amount;
-        if (balances.hasOwnProperty(to)) balances[to] -= r.amount;
+        add(from, cur, r.amount || 0);
+        add(to, cur, -(r.amount || 0));
       }
     });
     return balances;
+  }
+
+  // Collapse per-currency balances into a single number using display currency.
+  // Returns { [memberId]: number, _allConverted: bool }
+  function computeBalances(){
+    const byCur = computeBalancesByCurrency();
+    const display = state.displayCurrency;
+    const out = {};
+    let allConverted = true;
+    Object.entries(byCur).forEach(([id, perCur]) => {
+      let total = 0;
+      Object.entries(perCur).forEach(([cur, v]) => {
+        if (display && cur !== display) {
+          const { value, ok } = convert(v, cur, display);
+          if (!ok) allConverted = false;
+          total += value;
+        } else {
+          total += v;
+        }
+      });
+      out[id] = total;
+    });
+    out._allConverted = allConverted;
+    return out;
   }
 
   // ---------- Render: balances ----------
@@ -900,19 +1014,50 @@
       container.innerHTML = '<div class="empty">尚未新增成員</div>';
       return;
     }
-    const balances = computeBalances();
-    const currency = (state.meta && state.meta.currency) || 'JPY';
+    const display = state.displayCurrency;
+    const byCur = computeBalancesByCurrency();
+
+    // Decide each member's status by looking at the converted total when display is set,
+    // otherwise by checking if any per-currency entry is non-zero.
     container.innerHTML = members.map(m => {
-      const b = balances[m.id] || 0;
-      let status, cls;
-      if (Math.abs(b) < 0.005) { status = '收支平衡'; cls = 'status-neutral'; }
-      else if (b < 0) { status = '待支付'; cls = 'status-owe'; }
-      else { status = '待收款'; cls = 'status-receive'; }
-      const amt = b.toFixed(1);
+      const perCur = byCur[m.id] || {};
+      let status, cls, amountHtml;
+
+      if (display) {
+        let total = 0, allOk = true;
+        Object.entries(perCur).forEach(([cur, v]) => {
+          if (cur === display) { total += v; return; }
+          const { value, ok } = convert(v, cur, display);
+          if (!ok) allOk = false;
+          total += value;
+        });
+        if (Math.abs(total) < 0.005) { status = '收支平衡'; cls = 'status-neutral'; }
+        else if (total < 0) { status = '待支付'; cls = 'status-owe'; }
+        else { status = '待收款'; cls = 'status-receive'; }
+        amountHtml = `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}`;
+      } else {
+        // No display currency — show per-currency breakdown (no fake summing).
+        const entries = Object.entries(perCur).filter(([, v]) => Math.abs(v) >= 0.005);
+        if (!entries.length) {
+          status = '收支平衡'; cls = 'status-neutral';
+          const fallback = (state.meta && state.meta.currency) || 'JPY';
+          amountHtml = `0.0 ${fallback}`;
+        } else {
+          const allNeg = entries.every(([, v]) => v < 0);
+          const allPos = entries.every(([, v]) => v > 0);
+          if (allNeg) { status = '待支付'; cls = 'status-owe'; }
+          else if (allPos) { status = '待收款'; cls = 'status-receive'; }
+          else { status = '部分待支付 / 部分待收款'; cls = 'status-neutral'; }
+          amountHtml = entries
+            .map(([cur, v]) => `<div class="balance-line ${v < 0 ? 'status-owe' : v > 0 ? 'status-receive' : ''}">${v.toFixed(1)} ${cur}</div>`)
+            .join('');
+        }
+      }
+
       return `<div class="balance-row">
         <div class="balance-name">${escapeHtml(m.name)}</div>
         <div class="balance-right">
-          <div class="balance-amount ${cls}">${amt} ${currency}</div>
+          <div class="balance-amount ${cls}">${amountHtml}</div>
           <div class="balance-status ${cls}">${status}</div>
         </div>
       </div>`;
@@ -924,6 +1069,7 @@
     // Greedy min-transactions algorithm.
     const pos = [], neg = [];
     Object.entries(balances).forEach(([id, v]) => {
+      if (id === '_allConverted') return;
       const r = round2(v);
       if (r > 0.005) pos.push({ id, amt: r });
       else if (r < -0.005) neg.push({ id, amt: -r });
@@ -950,22 +1096,45 @@
       section.style.display = 'none';
       return;
     }
-    const balances = computeBalances();
-    const txs = simplifyDebts(balances);
-    if (!txs.length) {
+
+    const display = state.displayCurrency;
+    let allTxs = []; // each: { from, to, amount, currency, ok }
+
+    if (display) {
+      // Convert and merge into one currency, then simplify.
+      const balances = computeBalances();
+      const ok = balances._allConverted !== false;
+      const txs = simplifyDebts(balances);
+      allTxs = txs.map(tx => ({ ...tx, currency: display, ok }));
+    } else {
+      // Simplify per-currency separately (no fake summing across currencies).
+      const byCur = computeBalancesByCurrency();
+      const currencies = new Set();
+      Object.values(byCur).forEach(perCur => Object.keys(perCur).forEach(c => currencies.add(c)));
+      currencies.forEach(cur => {
+        const slice = {};
+        Object.entries(byCur).forEach(([id, perCur]) => { slice[id] = perCur[cur] || 0; });
+        const txs = simplifyDebts(slice);
+        txs.forEach(tx => allTxs.push({ ...tx, currency: cur, ok: true }));
+      });
+    }
+
+    if (!allTxs.length) {
       section.style.display = 'none';
       return;
     }
     section.style.display = '';
-    const currency = (state.meta && state.meta.currency) || 'JPY';
-    container.innerHTML = txs.map(tx => `<div class="settle-row">
-      <div class="settle-flow">
-        <span class="settle-name">${escapeHtml(memberName(tx.from))}</span>
-        <span class="settle-arrow">→</span>
-        <span class="settle-name">${escapeHtml(memberName(tx.to))}</span>
-      </div>
-      <div class="settle-amount">${tx.amount.toFixed(1)} ${currency}</div>
-    </div>`).join('');
+    container.innerHTML = allTxs.map(tx => {
+      const star = tx.ok ? '' : ' *';
+      return `<div class="settle-row">
+        <div class="settle-flow">
+          <span class="settle-name">${escapeHtml(memberName(tx.from))}</span>
+          <span class="settle-arrow">→</span>
+          <span class="settle-name">${escapeHtml(memberName(tx.to))}</span>
+        </div>
+        <div class="settle-amount">${tx.amount.toFixed(1)} ${tx.currency}${star}</div>
+      </div>`;
+    }).join('');
     container.style.display = state.settleHidden ? 'none' : '';
     $('#settleToggle').textContent = state.settleHidden ? '顯示' : '隱藏';
     $('#settleToggle').setAttribute('aria-expanded', state.settleHidden ? 'false' : 'true');
@@ -991,7 +1160,7 @@
     entries.forEach(([id, r]) => {
       if (r.type === '支出') grand[r.currency] = (grand[r.currency] || 0) + (r.amount || 0);
     });
-    const grandStr = Object.entries(grand).map(([cur, v]) => `${v.toFixed(1)} ${cur}`).join(' · ') || '—';
+    const grandStr = Object.keys(grand).length ? fmtSum(grand) : '—';
 
     // Group by date
     const groups = {};
@@ -1009,7 +1178,7 @@
       recs.forEach(([id, r]) => {
         if (r.type === '支出') dayTotals[r.currency] = (dayTotals[r.currency] || 0) + (r.amount || 0);
       });
-      const dayTotalStr = Object.entries(dayTotals).map(([c, v]) => `${v.toFixed(1)} ${c}`).join(' · ');
+      const dayTotalStr = Object.keys(dayTotals).length ? fmtSum(dayTotals) : '';
       const headerLabel = formatDateLabel(date);
       const rowsHtml = recs.map(([id, r]) => recordRowHtml(id, r)).join('');
       return `<div class="date-group">
@@ -1584,7 +1753,21 @@
       });
     });
     $('#shareUrl').textContent = location.href;
+
+    // Display-currency dropdown
+    const sel = $('#displayCurrency');
+    sel.innerHTML = '<option value="">原始貨幣（不轉換）</option>' +
+      CURRENCIES.map(c => `<option value="${c}" ${state.displayCurrency===c?'selected':''}>${c}</option>`).join('');
+    sel.value = state.displayCurrency;
+    updateRateStatus();
   }
+
+  // Bound once
+  $('#displayCurrency').addEventListener('change', e => {
+    state.displayCurrency = e.target.value || '';
+    updateRateStatus();
+    loadAllRates();
+  });
 
   $('#settingsBtn').addEventListener('click', () => {
     renderSettings();
@@ -1695,6 +1878,8 @@
       renderBalances();
       renderRecords();
       renderSettlement();
+      // Ensure rates exist for any new currency introduced by records
+      if (state.displayCurrency) loadAllRates();
     }
   });
 
