@@ -311,6 +311,40 @@
   .form-input.left { text-align: left; }
   select.form-input { text-align-last: right; appearance: none; padding-right: 6px; }
 
+  /* Date input — pin value text to the right edge on mobile (WebKit) */
+  input.form-input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: right;
+    min-width: 0;
+  }
+  input.form-input[type="date"]::-webkit-date-and-time-value {
+    text-align: right;
+    width: 100%;
+  }
+  input.form-input[type="date"]::-webkit-calendar-picker-indicator {
+    margin-left: 6px;
+    opacity: 0.7;
+    cursor: pointer;
+  }
+
+  /* Date row — make the native picker indicator visible on mobile */
+  .date-row input[type="date"] {
+    min-height: 24px;
+  }
+  .date-row input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 1;
+    filter: invert(35%) sepia(70%) saturate(700%) hue-rotate(140deg);
+    cursor: pointer;
+    padding: 4px;
+  }
+  .date-pick-btn {
+    font-size: 18px;
+    padding: 2px 4px;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
   /* Category grid */
   .cat-grid {
     display: grid;
@@ -1430,7 +1464,7 @@
         <input class="form-input" id="f-amount" type="number" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
       </div>
       <div class="form-row"><div class="form-label">備註</div>
-        <input class="form-input" id="f-note" placeholder="備註（可留空）" value="${escapeHtml(state.form.note)}" />
+        <input class="form-input" id="f-note" placeholder="備註(可留空)" value="${escapeHtml(state.form.note)}" />
       </div>
       <div class="form-row"><div class="form-label">日期</div>
         <input class="form-input" id="f-date" type="date" value="${state.form.date}" />
