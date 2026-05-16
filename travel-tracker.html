@@ -190,12 +190,6 @@
     display: none;
   }
   .record-row.expanded + .record-detail { display: block; }
-  .record-delete {
-    margin-top: 8px;
-    color: var(--error);
-    font-size: 13px;
-    display: inline-flex; align-items: center; gap: 4px;
-  }
 
   .empty {
     padding: 32px 16px;
@@ -477,14 +471,23 @@
   }
   .total-bar strong { color: var(--text); font-weight: 600; }
 
-  /* Edit button in record detail */
+  /* Edit / delete buttons in record detail */
   .record-actions {
     display: flex;
+    align-items: center;
     gap: 16px;
     margin-top: 8px;
   }
-  .record-edit { color: var(--primary); font-size: 13px; font-weight: 600; }
-  .record-delete { color: var(--error); font-size: 13px; }
+  .record-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .record-edit { color: var(--primary); font-weight: 600; }
+  .record-delete { color: var(--error); }
 
   /* Lock dot — interactive */
   .ma-locked-dot {
