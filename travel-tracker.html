@@ -328,6 +328,23 @@
     cursor: pointer;
   }
 
+  /* Time input — pin value text to the right edge on mobile (WebKit) */
+  input.form-input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: right;
+    min-width: 0;
+  }
+  input.form-input[type="time"]::-webkit-date-and-time-value {
+    text-align: right;
+    width: 100%;
+  }
+  input.form-input[type="time"]::-webkit-calendar-picker-indicator {
+    margin-left: 6px;
+    opacity: 0.7;
+    cursor: pointer;
+  }
+
   /* Date row — make the native picker indicator visible on mobile */
   .date-row input[type="date"] {
     min-height: 24px;
