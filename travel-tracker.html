@@ -878,6 +878,27 @@
     white-space: nowrap;
   }
   .wish-title a { color: var(--primary); text-decoration: none; }
+  .wish-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 6px;
+    font-weight: 500;
+  }
+  .wish-locs {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .wish-loc {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  .wish-loc a { color: var(--primary); text-decoration: none; }
   .wish-note {
     font-size: 12px;
     color: var(--text-muted);
@@ -886,6 +907,8 @@
     word-break: break-word;
   }
   .wish-row.expanded .wish-title { white-space: normal; }
+  .wish-row:not(.expanded) .wish-note { display: none; }
+  .wish-row:not(.expanded) .wish-locs { max-height: 44px; overflow: hidden; }
   .wish-actions {
     display: none;
     gap: 16px;
@@ -895,6 +918,34 @@
   .wish-actions button { font-size: 13px; padding: 4px 0; }
   .wish-actions .edit { color: var(--primary); font-weight: 600; }
   .wish-actions .delete { color: var(--error); }
+  .wish-form-list { display: flex; flex-direction: column; gap: 10px; }
+  .wish-loc-row {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--surface);
+    display: grid;
+    gap: 8px;
+  }
+  .wish-input {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--surface);
+    text-align: left;
+    font-size: 14px;
+  }
+  .wish-remove {
+    color: var(--error);
+    font-size: 12px;
+    align-self: flex-end;
+  }
+  .wish-add {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 6px 0;
+  }
 </style>
 </head>
 <body>
@@ -1006,18 +1057,6 @@
   </div>
 </div>
 
-<!-- Wishlist location input overlay -->
-<div class="overlay" id="wishLocOverlay">
-  <div class="sheet">
-    <div class="sheet-header">
-      <button class="icon-btn" id="closeWishLoc" aria-label="關閉"><i data-lucide="x"></i></button>
-      <div style="flex:1;text-align:center;font-weight:600" id="wishLocTitle">新增地點</div>
-      <button class="save-btn" id="wishLocSaveBtn">儲存</button>
-    </div>
-    <div class="form-body" id="wishLocFormBody"></div>
-  </div>
-</div>
-
 <!-- Setup modal -->
 <div class="modal centered" id="setupModal">
   <div class="modal-content">
@@ -1097,16 +1136,10 @@
       category: '景點',
       note: ''
     },
-    wishForm: {            // edit form state for wishlist categories
+    wishForm: {            // edit form state for wishlist items
       editingId: null,
       title: '',
-      note: ''
-    },
-    wishLocForm: {         // edit form state for wishlist locations
-      editingCatId: null,
-      editingId: null,
-      location: '',
-      mapUrl: '',
+      locations: [],
       note: ''
     },
     currentTab: '支出',
@@ -2225,87 +2258,109 @@
   }
 
   // ---------- Wishlist (願望清單) ----------
+  function normalizeWishItem(item){
+    const title = item && item.title ? String(item.title) : '';
+    const note = item && item.note ? String(item.note) : '';
+    const hasLocationsField = !!(item && Object.prototype.hasOwnProperty.call(item, 'locations'));
+    let locations = [];
+    if (hasLocationsField && Array.isArray(item.locations)) {
+      locations = item.locations.map(loc => ({
+        name: loc && loc.name ? String(loc.name) : '',
+        mapUrl: loc && loc.mapUrl ? String(loc.mapUrl) : ''
+      })).filter(loc => loc.name || loc.mapUrl);
+    }
+    if (!hasLocationsField && !locations.length) {
+      const legacyUrl = item && item.mapUrl ? String(item.mapUrl) : '';
+      if (legacyUrl) locations = [{ name: title || '未命名地點', mapUrl: legacyUrl }];
+    }
+    return { title, note, locations };
+  }
+
   function renderWishList(){
     const container = $('#wishList');
-    const cats = Object.entries(state.wishlist || {});
-    if (!cats.length) {
-      container.innerHTML = '<div class="card"><div class="empty">還沒有願望清單，點擊 新增 建立第一個種類！</div></div>';
+    const entries = Object.entries(state.wishlist || {});
+    if (!entries.length) {
+      container.innerHTML = '<div class="card"><div class="empty">還沒有願望種類，點擊新增加入第一個！</div></div>';
       return;
     }
-    cats.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
-    const rows = cats.map(([id, cat]) => wishCategoryHtml(id, cat)).join('');
+    entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    const rows = entries.map(([id, item]) => wishRowHtml(id, item)).join('');
     container.innerHTML = `<div class="card">${rows}</div>`;
 
     container.onclick = (e) => {
-      const catEdit = e.target.closest('[data-cat-edit]');
-      if (catEdit) { e.stopPropagation(); openWishEdit(catEdit.dataset.catEdit); return; }
-      const catDel = e.target.closest('[data-cat-del]');
-      if (catDel) { e.stopPropagation(); const id = catDel.dataset.catDel; if (confirm('確定刪除此種類？會連同內部地點一併刪除。')) tripRef.child('wishlist/' + id).remove(); return; }
-      const catAddLoc = e.target.closest('[data-cat-add-loc]');
-      if (catAddLoc) { e.stopPropagation(); openWishLocNew(catAddLoc.dataset.catAddLoc); return; }
-      const locEdit = e.target.closest('[data-loc-edit]');
-      if (locEdit) { e.stopPropagation(); const [catId, locId] = locEdit.dataset.locEdit.split('|'); openWishLocEdit(catId, locId); return; }
-      const locDel = e.target.closest('[data-loc-del]');
-      if (locDel) { e.stopPropagation(); const [catId, locId] = locDel.dataset.locDel.split('|'); if (confirm('確定刪除此地點？')) tripRef.child(`wishlist/${catId}/locations/${locId}`).remove(); return; }
-      if (e.target.closest('a')) return;
+      const editBtn = e.target.closest('[data-wish-edit]');
+      if (editBtn) { e.stopPropagation(); openWishEdit(editBtn.dataset.wishEdit); return; }
+      const delBtn = e.target.closest('[data-wish-del]');
+      if (delBtn) {
+        e.stopPropagation();
+        const id = delBtn.dataset.wishDel;
+        if (confirm('確定刪除此願望？')) tripRef.child('wishlist/' + id).remove();
+        return;
+      }
+      if (e.target.closest('a')) return; // Don't toggle when tapping map link
       const row = e.target.closest('.wish-row');
       if (row) row.classList.toggle('expanded');
     };
   }
-  function wishCategoryHtml(catId, cat){
-    const title = cat.title || '未命名';
-    const locs = cat.locations ? Object.entries(cat.locations) : [];
-    const locRows = (locs.length ? locs.sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).map(([lid, l]) => {
-      const locTitle = l.location || '未命名地點';
-      const locHtml = l.mapUrl ? `<a href="${escapeHtml(l.mapUrl)}" target="_blank" rel="noopener">${escapeHtml(locTitle)}</a>` : escapeHtml(locTitle);
-      const noteHtml = l.note ? `<div class="wish-note">${escapeHtml(l.note)}</div>` : '';
-      return `<div class="wish-row loc-row" data-cat="${catId}" data-loc="${lid}">
-        <div class="wish-icon">📍</div>
-        <div class="wish-info">
-          <div class="wish-title">${locHtml}</div>
-          ${noteHtml}
-        </div>
-      </div>
-      <div class="wish-actions">
-        <button class="edit" data-loc-edit="${catId}|${lid}">✎ 編輯</button>
-        <button class="delete" data-loc-del="${catId}|${lid}">🗑 刪除</button>
-      </div>`;
-    }).join('') : '<div class="empty" style="padding:12px 16px">尚未新增任何地點</div>');
 
-    return `<div class="wish-cat" data-cat-id="${catId}">
-      <div class="wish-row" data-cat-id-row="${catId}">
-        <div class="wish-icon">⭐</div>
-        <div class="wish-info">
-          <div class="wish-title">${escapeHtml(title)} <span style="font-size:12px;color:var(--text-muted);font-weight:500">· ${locs.length} 個地點</span></div>
-          ${cat.note ? `<div class="wish-note">${escapeHtml(cat.note)}</div>` : ''}
-        </div>
+  function wishRowHtml(id, item){
+    const normalized = normalizeWishItem(item);
+    const title = normalized.title || '未命名種類';
+    const locations = normalized.locations || [];
+    const locCount = locations.length;
+    const locSummary = locCount ? `${locCount} 個地點` : '';
+    const locHtml = locCount
+      ? locations.map(loc => {
+          const name = loc.name || '未命名地點';
+          const nameHtml = escapeHtml(name);
+          const linkHtml = loc.mapUrl
+            ? `<a href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">${nameHtml}</a>`
+            : nameHtml;
+          return `<span class="wish-loc">${linkHtml}</span>`;
+        }).join('')
+      : '';
+    const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
+    return `<div class="wish-row" data-id="${id}">
+      <div class="wish-icon">⭐</div>
+      <div class="wish-info">
+        <div class="wish-title">${escapeHtml(title)}${locSummary ? `<span class=\"wish-count\">${locSummary}</span>` : ''}</div>
+        ${locHtml ? `<div class=\"wish-locs\">${locHtml}</div>` : ''}
+        ${noteHtml}
       </div>
-      <div class="card">${locRows}
-        <div class="wish-actions" style="padding:10px 16px;justify-content:flex-start">
-          <button class="link-btn" data-cat-add-loc="${catId}">+ 新增地點</button>
-          <button class="link-btn" data-cat-edit="${catId}">✎ 編輯種類</button>
-          <button class="link-btn" data-cat-del="${catId}">🗑 刪除種類</button>
-        </div>
-      </div>
+    </div>
+    <div class="wish-actions">
+      <button class="edit" data-wish-edit="${id}">✎ 編輯</button>
+      <button class="delete" data-wish-del="${id}">🗑 刪除</button>
     </div>`;
   }
 
   function defaultWishForm(){
-    return { editingId: null, title: '', note: '' };
+    return {
+      editingId: null,
+      title: '',
+      locations: [],
+      note: ''
+    };
   }
 
   function openWishNew(){
     state.wishForm = defaultWishForm();
-    $('#wishTitle').textContent = '新增種類';
+    $('#wishTitle').textContent = '新增願望';
     renderWishForm();
     $('#wishOverlay').classList.add('open');
   }
 
-  function openWishEdit(catId){
-    const item = state.wishlist[catId];
+  function openWishEdit(id){
+    const item = state.wishlist[id];
     if (!item) return;
-    state.wishForm = { editingId: catId, title: item.title || '', note: item.note || '' };
-    $('#wishTitle').textContent = '編輯種類';
+    const normalized = normalizeWishItem(item);
+    state.wishForm = {
+      editingId: id,
+      title: normalized.title || '',
+      locations: normalized.locations,
+      note: normalized.note || ''
+    };
+    $('#wishTitle').textContent = '編輯願望';
     renderWishForm();
     $('#wishOverlay').classList.add('open');
   }
@@ -2314,113 +2369,90 @@
 
   function renderWishForm(){
     const f = state.wishForm;
+    const locations = Array.isArray(f.locations) ? f.locations : [];
     $('#wishFormBody').innerHTML = `
       <div class="form-group">
         <div class="form-row"><div class="form-label">種類</div>
-          <input class="form-input" id="wf-title" placeholder="例如：美食 / 景點" value="${escapeHtml(f.title)}" />
+          <input class="form-input" id="wf-title" placeholder="例如：咖啡、甜點、景點" value="${escapeHtml(f.title)}" />
         </div>
       </div>
       <div class="form-group">
         <div class="form-row col">
-          <div class="form-label" style="width:auto;align-self:flex-start;margin-bottom:6px">備註</div>
-          <textarea id="wf-note" class="form-input left" rows="3" style="border:1px solid var(--border);border-radius:8px;padding:8px;resize:vertical">${escapeHtml(f.note)}</textarea>
+          <div class="form-label" style="width:auto;align-self:flex-start;margin-bottom:6px">地點（可留空）</div>
+          <div class="wish-form-list" id="wishLocations">
+            ${locations.map((loc, i) => `
+              <div class="wish-loc-row">
+                <input class="wish-input" data-loc-name="${i}" placeholder="地點名稱" value="${escapeHtml(loc.name || '')}" />
+                <input class="wish-input" data-loc-map="${i}" placeholder="地圖連結（可留空）" value="${escapeHtml(loc.mapUrl || '')}" />
+                <button class="wish-remove" type="button" data-loc-remove="${i}">移除</button>
+              </div>
+            `).join('')}
+          </div>
+          <button class="wish-add" type="button" id="wishAddLocation">+ 新增地點</button>
         </div>
       </div>
     `;
     $('#wf-title').addEventListener('input', e => state.wishForm.title = e.target.value);
-    $('#wf-note').addEventListener('input', e => state.wishForm.note = e.target.value);
+    $$('#wishLocations [data-loc-name]').forEach(inp => {
+      const idx = Number(inp.dataset.locName);
+      inp.addEventListener('input', e => { state.wishForm.locations[idx].name = e.target.value; });
+    });
+    $$('#wishLocations [data-loc-map]').forEach(inp => {
+      const idx = Number(inp.dataset.locMap);
+      inp.addEventListener('input', e => { state.wishForm.locations[idx].mapUrl = e.target.value; });
+    });
+    $$('#wishLocations [data-loc-remove]').forEach(btn => {
+      const idx = Number(btn.dataset.locRemove);
+      btn.addEventListener('click', () => {
+        state.wishForm.locations.splice(idx, 1);
+        renderWishForm();
+      });
+    });
+    $('#wishAddLocation').addEventListener('click', () => {
+      state.wishForm.locations.push({ name: '', mapUrl: '' });
+      renderWishForm();
+    });
   }
 
   function saveWish(){
     const f = state.wishForm;
     const title = (f.title || '').trim();
-    if (!title) { showToast('請輸入種類名稱'); return; }
-    const data = { title, note: (f.note || '').trim() };
+    if (!title) { showToast('請輸入種類'); return; }
+    const rawLocations = (f.locations || []).map(loc => ({
+      name: (loc && loc.name ? String(loc.name) : '').trim(),
+      mapUrl: (loc && loc.mapUrl ? String(loc.mapUrl) : '').trim()
+    }));
+    if (rawLocations.some(loc => loc.mapUrl && !loc.name)) {
+      showToast('請填寫地點名稱');
+      return;
+    }
+    const locations = rawLocations.filter(loc => loc.name);
+    const data = {
+      title,
+      locations,
+      note: (f.note || '').trim()
+    };
 
-    const btn = $('#wishSaveBtn'); btn.disabled = true; btn.textContent = '儲存中...';
+    const btn = $('#wishSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '儲存中...';
+
     let promise;
     if (f.editingId) {
       const existing = state.wishlist[f.editingId] || {};
       data.createdAt = existing.createdAt || firebase.database.ServerValue.TIMESTAMP;
       data.updatedAt = firebase.database.ServerValue.TIMESTAMP;
-      // preserve existing locations if present
-      if (existing.locations) data.locations = existing.locations;
       promise = tripRef.child('wishlist/' + f.editingId).set(data);
     } else {
       data.createdAt = firebase.database.ServerValue.TIMESTAMP;
-      data.locations = {};
       promise = tripRef.child('wishlist').push().set(data);
     }
 
-    promise.then(() => { closeWishOverlay(); showToast(f.editingId ? '已更新' : '已新增'); })
-      .catch(err => showToast('儲存失敗：' + err.message))
+    promise.then(() => {
+      closeWishOverlay();
+      showToast(f.editingId ? '已更新' : '已新增');
+    }).catch(err => showToast('儲存失敗：' + err.message))
       .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
-  }
-
-  // ---------- Wishlist location CRUD ----------
-  function defaultWishLocForm(){ return { editingCatId: null, editingId: null, location: '', mapUrl: '', note: '' }; }
-
-  function openWishLocNew(catId){
-    state.wishLocForm = defaultWishLocForm();
-    state.wishLocForm.editingCatId = catId;
-    $('#wishLocTitle').textContent = '新增地點';
-    renderWishLocForm();
-    $('#wishLocOverlay').classList.add('open');
-  }
-
-  function openWishLocEdit(catId, locId){
-    const cat = state.wishlist[catId]; if (!cat || !cat.locations) return;
-    const loc = cat.locations[locId]; if (!loc) return;
-    state.wishLocForm = { editingCatId: catId, editingId: locId, location: loc.location || '', mapUrl: loc.mapUrl || '', note: loc.note || '' };
-    $('#wishLocTitle').textContent = '編輯地點';
-    renderWishLocForm();
-    $('#wishLocOverlay').classList.add('open');
-  }
-
-  function closeWishLocOverlay(){ $('#wishLocOverlay').classList.remove('open'); }
-
-  function renderWishLocForm(){
-    const f = state.wishLocForm;
-    $('#wishLocFormBody').innerHTML = `
-      <div class="form-group">
-        <div class="form-row"><div class="form-label">地點</div>
-          <input class="form-input" id="wlf-location" placeholder="地址或地名" value="${escapeHtml(f.location)}" />
-        </div>
-        <div class="form-row"><div class="form-label">地圖連結</div>
-          <input class="form-input" id="wlf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
-        </div>
-      </div>
-      <div class="form-group">
-        <div class="form-row col">
-          <div class="form-label" style="width:auto;align-self:flex-start;margin-bottom:6px">備註</div>
-          <textarea id="wlf-note" class="form-input left" rows="3" style="border:1px solid var(--border);border-radius:8px;padding:8px;resize:vertical">${escapeHtml(f.note)}</textarea>
-        </div>
-      </div>
-    `;
-    $('#wlf-location').addEventListener('input', e => state.wishLocForm.location = e.target.value);
-    $('#wlf-map').addEventListener('input', e => state.wishLocForm.mapUrl = e.target.value);
-    $('#wlf-note').addEventListener('input', e => state.wishLocForm.note = e.target.value);
-  }
-
-  function saveWishLoc(){
-    const f = state.wishLocForm;
-    const location = (f.location || '').trim();
-    if (!location) { showToast('請輸入地點'); return; }
-    const data = { location, mapUrl: (f.mapUrl||'').trim(), note: (f.note||'').trim() };
-    const btn = $('#wishLocSaveBtn'); btn.disabled = true; btn.textContent = '儲存中...';
-    if (f.editingId) {
-      const existing = (state.wishlist[f.editingCatId] && state.wishlist[f.editingCatId].locations && state.wishlist[f.editingCatId].locations[f.editingId]) || {};
-      data.createdAt = existing.createdAt || firebase.database.ServerValue.TIMESTAMP;
-      data.updatedAt = firebase.database.ServerValue.TIMESTAMP;
-      tripRef.child(`wishlist/${f.editingCatId}/locations/${f.editingId}`).set(data).then(() => {
-        closeWishLocOverlay(); showToast('已更新');
-      }).catch(err => showToast('儲存失敗：' + err.message)).finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
-    } else {
-      data.createdAt = firebase.database.ServerValue.TIMESTAMP;
-      tripRef.child(`wishlist/${f.editingCatId}/locations`).push().set(data).then(() => {
-        closeWishLocOverlay(); showToast('已新增');
-      }).catch(err => showToast('儲存失敗：' + err.message)).finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
-    }
   }
 
   // ---------- View switching ----------
@@ -2451,10 +2483,6 @@
   $('#wishOverlay').addEventListener('click', e => {
     if (e.target.id === 'wishOverlay') closeWishOverlay();
   });
-
-  $('#closeWishLoc').addEventListener('click', closeWishLocOverlay);
-  $('#wishLocSaveBtn').addEventListener('click', saveWishLoc);
-  $('#wishLocOverlay').addEventListener('click', e => { if (e.target.id === 'wishLocOverlay') closeWishLocOverlay(); });
 
   // ---------- Tabs ----------
   $$('#tabs .tab').forEach(t => t.addEventListener('click', () => {
