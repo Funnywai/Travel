@@ -1332,17 +1332,22 @@
           if (!ok) allOk = false;
           total += value;
         });
-        if (Math.abs(total) < 0.005) { status = '收支平衡'; cls = 'status-neutral'; }
-        else if (total < 0) { status = '待支付'; cls = 'status-owe'; }
-        else { status = '待收款'; cls = 'status-receive'; }
-        amountHtml = `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}`;
+        if (Math.abs(total) < 0.005) {
+          status = '收支平衡'; cls = 'status-neutral';
+          amountHtml = '';
+        } else if (total < 0) {
+          status = '待支付'; cls = 'status-owe';
+          amountHtml = `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}`;
+        } else {
+          status = '待收款'; cls = 'status-receive';
+          amountHtml = `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}`;
+        }
       } else {
         // No display currency — show per-currency breakdown (no fake summing).
         const entries = Object.entries(perCur).filter(([, v]) => Math.abs(v) >= 0.005);
         if (!entries.length) {
           status = '收支平衡'; cls = 'status-neutral';
-          const fallback = (state.meta && state.meta.currency) || 'JPY';
-          amountHtml = `0.0 ${fallback}`;
+          amountHtml = '';
         } else {
           const allNeg = entries.every(([, v]) => v < 0);
           const allPos = entries.every(([, v]) => v > 0);
