@@ -888,15 +888,17 @@
     font-size: 12px;
     color: var(--text-muted);
     margin-top: 4px;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     gap: 6px;
   }
   .wish-loc {
-    padding: 2px 8px;
-    border-radius: 10px;
+    padding: 6px 8px;
+    border-radius: 8px;
     background: var(--bg);
     border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    width: 100%;
   }
   .wish-loc a { color: var(--primary); text-decoration: none; }
   .wish-note {
@@ -908,7 +910,7 @@
   }
   .wish-row.expanded .wish-title { white-space: normal; }
   .wish-row:not(.expanded) .wish-note { display: none; }
-  .wish-row:not(.expanded) .wish-locs { max-height: 44px; overflow: hidden; }
+  .wish-row:not(.expanded) .wish-locs { overflow: visible; }
   .wish-actions {
     display: none;
     gap: 16px;
@@ -1005,7 +1007,6 @@
     <div class="section">
       <div class="section-title-row">
         <h2 class="section-title" style="margin:0">願望清單</h2>
-        <button class="section-toggle" id="wishAddBtn">新增</button>
       </div>
       <div id="wishList">
         <div class="card"><div class="skeleton skel-row"></div></div>
@@ -2316,7 +2317,7 @@
           const linkHtml = loc.mapUrl
             ? `<a href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">${nameHtml}</a>`
             : nameHtml;
-          return `<span class="wish-loc">${linkHtml}</span>`;
+          return `<div class="wish-loc">${linkHtml}</div>`;
         }).join('')
       : '';
     const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
@@ -2477,7 +2478,6 @@
     if (e.target.id === 'schedOverlay') closeSchedOverlay();
   });
 
-  $('#wishAddBtn').addEventListener('click', openWishNew);
   $('#closeWish').addEventListener('click', closeWishOverlay);
   $('#wishSaveBtn').addEventListener('click', saveWish);
   $('#wishOverlay').addEventListener('click', e => {
