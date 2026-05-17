@@ -719,6 +719,121 @@
     pointer-events: none;
   }
   .toast.show { opacity: 1; }
+
+  /* View switcher (記賬 / 行程) */
+  .view-switcher {
+    display: flex;
+    gap: 6px;
+    padding: 12px 20px 0;
+    background: var(--bg);
+    position: sticky;
+    top: 73px;
+    z-index: 9;
+  }
+  .view-tab {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    transition: all .15s;
+  }
+  .view-tab.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(1,105,111,0.25);
+  }
+
+  /* Schedule */
+  .sched-day { margin-bottom: 14px; }
+  .sched-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .sched-day-count { font-weight: 500; font-size: 12px; }
+  .sched-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    align-items: flex-start;
+  }
+  .sched-row + .sched-row { border-top: 1px solid var(--border); }
+  .sched-time {
+    width: 50px;
+    flex-shrink: 0;
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 14px;
+    text-align: center;
+    padding-top: 4px;
+  }
+  .sched-time.no-time { color: var(--text-muted); font-size: 18px; }
+  .sched-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+    padding-top: 2px;
+  }
+  .sched-info { flex: 1; min-width: 0; }
+  .sched-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sched-loc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sched-loc a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+  .sched-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .sched-row.expanded .sched-loc,
+  .sched-row.expanded .sched-note {
+    white-space: normal;
+  }
+  .sched-actions {
+    display: none;
+    gap: 16px;
+    padding: 0 14px 12px 96px;
+  }
+  .sched-row.expanded + .sched-actions { display: flex; }
+  .sched-actions button { font-size: 13px; padding: 4px 0; }
+  .sched-actions .edit { color: var(--primary); font-weight: 600; }
+  .sched-actions .delete { color: var(--error); }
+
+  .cat-grid-sched {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 16px;
+  }
 </style>
 </head>
 <body>
@@ -731,26 +846,45 @@
     </button>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">收支狀況</h2>
-    <div class="card" id="balanceList">
-      <div class="skeleton skel-row"></div>
-      <div class="skeleton skel-row"></div>
+  <div class="view-switcher">
+    <button class="view-tab active" data-view="ledger">💰 記賬</button>
+    <button class="view-tab" data-view="schedule">📅 行程</button>
+  </div>
+
+  <div id="ledgerView">
+    <div class="section">
+      <h2 class="section-title">收支狀況</h2>
+      <div class="card" id="balanceList">
+        <div class="skeleton skel-row"></div>
+        <div class="skeleton skel-row"></div>
+      </div>
+    </div>
+
+    <div class="section" id="settleSection" style="display:none">
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">結算建議</h2>
+        <button class="section-toggle" id="settleToggle" aria-expanded="true">隱藏</button>
+      </div>
+      <div class="card" id="settleList"></div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">消費明細</h2>
+      <div id="recordList">
+        <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
+      </div>
     </div>
   </div>
 
-  <div class="section" id="settleSection" style="display:none">
-    <div class="section-title-row">
-      <h2 class="section-title" style="margin:0">結算建議</h2>
-      <button class="section-toggle" id="settleToggle" aria-expanded="true">隱藏</button>
-    </div>
-    <div class="card" id="settleList"></div>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">消費明細</h2>
-    <div id="recordList">
-      <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
+  <div id="scheduleView" style="display:none">
+    <div class="section">
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">行程安排</h2>
+        <button class="section-toggle" id="schedSort">時間排序</button>
+      </div>
+      <div id="scheduleList">
+        <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
+      </div>
     </div>
   </div>
 
@@ -771,6 +905,18 @@
       <button class="save-btn" id="saveBtn">儲存</button>
     </div>
     <div class="form-body" id="formBody"></div>
+  </div>
+</div>
+
+<!-- Schedule input overlay -->
+<div class="overlay" id="schedOverlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="icon-btn" id="closeSched" aria-label="關閉"><i data-lucide="x"></i></button>
+      <div style="flex:1;text-align:center;font-weight:600" id="schedTitle">新增行程</div>
+      <button class="save-btn" id="schedSaveBtn">儲存</button>
+    </div>
+    <div class="form-body" id="schedFormBody"></div>
   </div>
 </div>
 
@@ -840,6 +986,18 @@
   let state = {
     meta: null,        // { name, currency, members: {id: {name}} }
     records: {},       // { id: record }
+    schedule: {},      // { id: scheduleItem }
+    currentView: 'ledger', // 'ledger' | 'schedule'
+    schedSort: 'date',     // 'date' | 'created'
+    schedForm: {           // edit form state for schedule items
+      editingId: null,
+      date: '',
+      time: '',
+      location: '',
+      mapUrl: '',
+      category: '景點',
+      note: ''
+    },
     currentTab: '支出',
     selectedCategory: '餐飲',
     form: {
@@ -937,6 +1095,7 @@
       renderBalances();
       renderRecords();
       renderSettlement();
+      renderSchedule();
     }
   }
 
@@ -951,6 +1110,18 @@
     { key:'其他', emoji:'📦' }
   ];
   const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c.emoji]));
+
+  const SCHED_CATEGORIES = [
+    { key:'景點', emoji:'🎡' },
+    { key:'餐飲', emoji:'🍜' },
+    { key:'交通', emoji:'🚌' },
+    { key:'住宿', emoji:'🏨' },
+    { key:'購物', emoji:'🛍️' },
+    { key:'活動', emoji:'🎫' },
+    { key:'休息', emoji:'☕' },
+    { key:'其他', emoji:'📌' }
+  ];
+  const SCHED_CAT_BY_KEY = Object.fromEntries(SCHED_CATEGORIES.map(c => [c.key, c.emoji]));
 
   // ---------- Helpers ----------
   const $ = (s, el=document) => el.querySelector(s);
@@ -1734,6 +1905,229 @@
     });
   }
 
+  // ---------- Schedule (行程) ----------
+  function renderSchedule(){
+    const container = $('#scheduleList');
+    const entries = Object.entries(state.schedule || {});
+    if (!entries.length) {
+      container.innerHTML = '<div class="card"><div class="empty">還沒有任何行程，點擊 + 新增一站！</div></div>';
+      return;
+    }
+
+    if (state.schedSort === 'created') {
+      entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+      const rows = entries.map(([id, item]) => schedRowHtml(id, item)).join('');
+      container.innerHTML = `<div class="card">${rows}</div>`;
+    } else {
+      // Group by date, then sort by time within each day
+      const groups = {};
+      entries.forEach(([id, item]) => {
+        const d = item.date || '未排日期';
+        (groups[d] = groups[d] || []).push([id, item]);
+      });
+      const sortedDates = Object.keys(groups).sort((a, b) => {
+        if (a === '未排日期') return 1;
+        if (b === '未排日期') return -1;
+        return a.localeCompare(b);
+      });
+      sortedDates.forEach(d => {
+        groups[d].sort((a, b) => {
+          const ta = a[1].time || '99:99';
+          const tb = b[1].time || '99:99';
+          return ta.localeCompare(tb);
+        });
+      });
+      container.innerHTML = sortedDates.map(date => {
+        const items = groups[date];
+        const rows = items.map(([id, item]) => schedRowHtml(id, item)).join('');
+        return `<div class="sched-day">
+          <div class="sched-day-header">
+            <span>${escapeHtml(formatDateLabel(date))}</span>
+            <span class="sched-day-count">${items.length} 項</span>
+          </div>
+          <div class="card">${rows}</div>
+        </div>`;
+      }).join('');
+    }
+
+    container.onclick = (e) => {
+      const editBtn = e.target.closest('[data-sched-edit]');
+      if (editBtn) { e.stopPropagation(); openSchedEdit(editBtn.dataset.schedEdit); return; }
+      const delBtn = e.target.closest('[data-sched-del]');
+      if (delBtn) {
+        e.stopPropagation();
+        const id = delBtn.dataset.schedDel;
+        if (confirm('確定刪除此行程？')) tripRef.child('schedule/' + id).remove();
+        return;
+      }
+      if (e.target.closest('a')) return; // Don't toggle when tapping map link
+      const row = e.target.closest('.sched-row');
+      if (row) row.classList.toggle('expanded');
+    };
+  }
+
+  function schedRowHtml(id, item){
+    const icon = SCHED_CAT_BY_KEY[item.category] || '📌';
+    const time = item.time ? escapeHtml(item.time) : '·';
+    const timeClass = item.time ? '' : 'no-time';
+    const loc = item.location || item.title || '未命名';
+    const titleHtml = item.mapUrl
+      ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${escapeHtml(loc)}</a>`
+      : escapeHtml(loc);
+    const noteHtml = item.note ? `<div class="sched-note">${escapeHtml(item.note)}</div>` : '';
+    return `<div class="sched-row" data-id="${id}">
+      <div class="sched-time ${timeClass}">${time}</div>
+      <div class="sched-icon">${icon}</div>
+      <div class="sched-info">
+        <div class="sched-title">${titleHtml}</div>
+        ${noteHtml}
+      </div>
+    </div>
+    <div class="sched-actions">
+      <button class="edit" data-sched-edit="${id}">✎ 編輯</button>
+      <button class="delete" data-sched-del="${id}">🗑 刪除</button>
+    </div>`;
+  }
+
+  function defaultSchedForm(){
+    return {
+      editingId: null,
+      date: todayStr(),
+      time: '',
+      location: '',
+      mapUrl: '',
+      category: '景點',
+      note: ''
+    };
+  }
+
+  function openSchedNew(){
+    state.schedForm = defaultSchedForm();
+    $('#schedTitle').textContent = '新增行程';
+    renderSchedForm();
+    $('#schedOverlay').classList.add('open');
+  }
+
+  function openSchedEdit(id){
+    const item = state.schedule[id];
+    if (!item) return;
+    state.schedForm = {
+      editingId: id,
+      date: item.date || todayStr(),
+      time: item.time || '',
+      location: item.location || item.title || '',
+      mapUrl: item.mapUrl || '',
+      category: item.category || '景點',
+      note: item.note || ''
+    };
+    $('#schedTitle').textContent = '編輯行程';
+    renderSchedForm();
+    $('#schedOverlay').classList.add('open');
+  }
+
+  function closeSchedOverlay(){ $('#schedOverlay').classList.remove('open'); }
+
+  function renderSchedForm(){
+    const f = state.schedForm;
+    const catCells = SCHED_CATEGORIES.map(c => `<div class="cat-cell ${c.key===f.category?'active':''}" data-sched-cat="${c.key}">
+        <div class="cat-icon">${c.emoji}</div>
+        <div class="cat-label">${c.key}</div>
+      </div>`).join('');
+
+    $('#schedFormBody').innerHTML = `
+      <div class="form-group">
+        <div class="cat-grid-sched" id="schedCatGrid">${catCells}</div>
+      </div>
+      <div class="form-group">
+        <div class="form-row"><div class="form-label">地點</div>
+          <input class="form-input" id="sf-location" placeholder="地址或地名" value="${escapeHtml(f.location)}" />
+        </div>
+        <div class="form-row date-row"><div class="form-label">日期</div>
+          <input class="form-input" id="sf-date" type="date" value="${escapeHtml(f.date)}" />
+        </div>
+        <div class="form-row"><div class="form-label">時間</div>
+          <input class="form-input" id="sf-time" type="time" value="${escapeHtml(f.time)}" placeholder="可留空" />
+        </div>
+        <div class="form-row"><div class="form-label">地圖連結</div>
+          <input class="form-input" id="sf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-row col">
+          <div class="form-label" style="width:auto;align-self:flex-start;margin-bottom:6px">備註</div>
+          <textarea id="sf-note" class="form-input left" rows="3" style="border:1px solid var(--border);border-radius:8px;padding:8px;resize:vertical">${escapeHtml(f.note)}</textarea>
+        </div>
+      </div>
+    `;
+
+    $('#schedCatGrid').addEventListener('click', e => {
+      const cell = e.target.closest('[data-sched-cat]');
+      if (!cell) return;
+      state.schedForm.category = cell.dataset.schedCat;
+      $$('#schedCatGrid .cat-cell').forEach(x => x.classList.toggle('active', x === cell));
+    });
+    $('#sf-date').addEventListener('change', e => state.schedForm.date = e.target.value);
+    $('#sf-time').addEventListener('change', e => state.schedForm.time = e.target.value);
+    $('#sf-location').addEventListener('input', e => state.schedForm.location = e.target.value);
+    $('#sf-map').addEventListener('input', e => state.schedForm.mapUrl = e.target.value);
+    $('#sf-note').addEventListener('input', e => state.schedForm.note = e.target.value);
+  }
+
+  function saveSchedule(){
+    const f = state.schedForm;
+    const location = (f.location || '').trim();
+    if (!location) { showToast('請輸入地點'); return; }
+    const data = {
+      location,
+      date: f.date || '',
+      time: f.time || '',
+      mapUrl: (f.mapUrl || '').trim(),
+      category: f.category || '景點',
+      note: (f.note || '').trim()
+    };
+
+    const btn = $('#schedSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '儲存中...';
+
+    let promise;
+    if (f.editingId) {
+      const existing = state.schedule[f.editingId] || {};
+      data.createdAt = existing.createdAt || firebase.database.ServerValue.TIMESTAMP;
+      data.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('schedule/' + f.editingId).set(data);
+    } else {
+      data.createdAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('schedule').push().set(data);
+    }
+    promise.then(() => {
+      closeSchedOverlay();
+      showToast(f.editingId ? '已更新' : '已新增');
+    }).catch(err => showToast('儲存失敗：' + err.message))
+      .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
+  }
+
+  // ---------- View switching ----------
+  function setView(v){
+    state.currentView = v;
+    $$('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+    $('#ledgerView').style.display = v === 'ledger' ? '' : 'none';
+    $('#scheduleView').style.display = v === 'schedule' ? '' : 'none';
+  }
+  $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
+
+  $('#schedSort').addEventListener('click', () => {
+    state.schedSort = state.schedSort === 'date' ? 'created' : 'date';
+    $('#schedSort').textContent = state.schedSort === 'date' ? '時間排序' : '新增順序';
+    renderSchedule();
+  });
+
+  $('#closeSched').addEventListener('click', closeSchedOverlay);
+  $('#schedSaveBtn').addEventListener('click', saveSchedule);
+  $('#schedOverlay').addEventListener('click', e => {
+    if (e.target.id === 'schedOverlay') closeSchedOverlay();
+  });
+
   // ---------- Tabs ----------
   $$('#tabs .tab').forEach(t => t.addEventListener('click', () => {
     state.currentTab = t.dataset.tab;
@@ -1753,8 +2147,13 @@
   }));
 
   $('#fab').addEventListener('click', () => {
-    if (!state.meta || !memberList().length) { showToast('請先設定成員'); return; }
-    openInput();
+    if (!state.meta) { showToast('請先建立旅程'); return; }
+    if (state.currentView === 'schedule') {
+      openSchedNew();
+    } else {
+      if (!memberList().length) { showToast('請先設定成員'); return; }
+      openInput();
+    }
   });
   $('#closeInput').addEventListener('click', closeInput);
   $('#saveBtn').addEventListener('click', saveRecord);
@@ -1897,6 +2296,7 @@
       renderBalances();
       renderRecords();
       renderSettlement();
+      renderSchedule();
       if ($('#settingsModal').classList.contains('open')) renderSettings();
     } else {
       maybeShowSetup();
@@ -1913,6 +2313,11 @@
       // Ensure rates exist for any new currency introduced by records
       if (state.displayCurrency) loadAllRates();
     }
+  });
+
+  tripRef.child('schedule').on('value', snap => {
+    state.schedule = snap.val() || {};
+    if (state.meta) renderSchedule();
   });
 
   // Initial icons

@@ -12,7 +12,8 @@ Track shared trip expenses across multiple currencies, see real-time balances, a
 - **Live currency conversion** — pick a display currency in settings, all balances and totals convert via [exchangerate.fun](https://exchangerate.fun) (no API key)
 - **Settlement suggestions** — greedy min-transactions algorithm shows who owes whom, per currency or merged
 - **Records grouped by date** — daily subtotals + grand total at the top
-- **Edit & delete** records inline
+- **行程 (Itinerary) view** — share a trip schedule alongside the ledger: title, date, time, location, map link, category, and notes; grouped by date or sorted by creation
+- **Edit & delete** records and schedule items inline
 - **Real-time sync** — all members see the same data via Firebase RTDB; share by URL hash
 - **Inline group rename** — tap the title to edit
 - **No storage permissions needed** — state lives in memory + URL hash + Firebase only
@@ -114,6 +115,17 @@ trips/{tripId}/
       shares: { memberId: amount }    (支出)
       payer: memberId                 (轉賬: sender)
       receiver: memberId              (轉賬: receiver)
+      createdAt: timestamp
+      updatedAt: timestamp  (only on edit)
+  schedule/
+    {scheduleId}/
+      title: string
+      date: string  (YYYY-MM-DD, optional)
+      time: string  (HH:MM, optional)
+      location: string  (optional)
+      mapUrl: string    (optional)
+      category: string  (景點/餐飲/交通/住宿/購物/活動/休息/其他)
+      note: string      (optional)
       createdAt: timestamp
       updatedAt: timestamp  (only on edit)
 ```
