@@ -910,6 +910,7 @@
   <div class="view-switcher">
     <button class="view-tab active" data-view="ledger">💰 記賬</button>
     <button class="view-tab" data-view="schedule">📅 行程</button>
+    <button class="view-tab" data-view="wishlist">⭐ 願望</button>
   </div>
 
   <div id="ledgerView">
@@ -947,6 +948,9 @@
         <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
       </div>
     </div>
+  </div>
+
+  <div id="wishView" style="display:none">
     <div class="section">
       <div class="section-title-row">
         <h2 class="section-title" style="margin:0">願望清單</h2>
@@ -1070,7 +1074,7 @@
     records: {},       // { id: record }
     schedule: {},      // { id: scheduleItem }
     wishlist: {},      // { id: wishItem }
-    currentView: 'ledger', // 'ledger' | 'schedule'
+    currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist'
     schedSort: 'date',     // 'date' | 'created'
     schedForm: {           // edit form state for schedule items
       editingId: null,
@@ -2337,6 +2341,7 @@
     $$('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
     $('#ledgerView').style.display = v === 'ledger' ? '' : 'none';
     $('#scheduleView').style.display = v === 'schedule' ? '' : 'none';
+    $('#wishView').style.display = v === 'wishlist' ? '' : 'none';
   }
   $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
 
@@ -2381,6 +2386,8 @@
     if (!state.meta) { showToast('請先建立旅程'); return; }
     if (state.currentView === 'schedule') {
       openSchedNew();
+    } else if (state.currentView === 'wishlist') {
+      openWishNew();
     } else {
       if (!memberList().length) { showToast('請先設定成員'); return; }
       openInput();
