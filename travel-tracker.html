@@ -852,6 +852,49 @@
     gap: 8px;
     padding: 16px;
   }
+
+  /* Wishlist */
+  .wish-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    align-items: flex-start;
+  }
+  .wish-row + .wish-row { border-top: 1px solid var(--border); }
+  .wish-icon {
+    width: 32px;
+    text-align: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    line-height: 1.2;
+    margin-top: 2px;
+  }
+  .wish-info { flex: 1; min-width: 0; }
+  .wish-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wish-title a { color: var(--primary); text-decoration: none; }
+  .wish-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .wish-row.expanded .wish-title { white-space: normal; }
+  .wish-actions {
+    display: none;
+    gap: 16px;
+    padding: 0 14px 12px 58px;
+  }
+  .wish-row.expanded + .wish-actions { display: flex; }
+  .wish-actions button { font-size: 13px; padding: 4px 0; }
+  .wish-actions .edit { color: var(--primary); font-weight: 600; }
+  .wish-actions .delete { color: var(--error); }
 </style>
 </head>
 <body>
@@ -904,6 +947,15 @@
         <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
       </div>
     </div>
+    <div class="section">
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">願望清單</h2>
+        <button class="section-toggle" id="wishAddBtn">新增</button>
+      </div>
+      <div id="wishList">
+        <div class="card"><div class="skeleton skel-row"></div></div>
+      </div>
+    </div>
   </div>
 
   <button class="fab" id="fab" aria-label="新增">
@@ -935,6 +987,18 @@
       <button class="save-btn" id="schedSaveBtn">儲存</button>
     </div>
     <div class="form-body" id="schedFormBody"></div>
+  </div>
+</div>
+
+<!-- Wishlist input overlay -->
+<div class="overlay" id="wishOverlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="icon-btn" id="closeWish" aria-label="關閉"><i data-lucide="x"></i></button>
+      <div style="flex:1;text-align:center;font-weight:600" id="wishTitle">新增願望</div>
+      <button class="save-btn" id="wishSaveBtn">儲存</button>
+    </div>
+    <div class="form-body" id="wishFormBody"></div>
   </div>
 </div>
 
@@ -1005,6 +1069,7 @@
     meta: null,        // { name, currency, members: {id: {name}} }
     records: {},       // { id: record }
     schedule: {},      // { id: scheduleItem }
+    wishlist: {},      // { id: wishItem }
     currentView: 'ledger', // 'ledger' | 'schedule'
     schedSort: 'date',     // 'date' | 'created'
     schedForm: {           // edit form state for schedule items
@@ -1014,6 +1079,12 @@
       location: '',
       mapUrl: '',
       category: '景點',
+      note: ''
+    },
+    wishForm: {            // edit form state for wishlist items
+      editingId: null,
+      title: '',
+      mapUrl: '',
       note: ''
     },
     currentTab: '支出',
@@ -1114,6 +1185,7 @@
       renderRecords();
       renderSettlement();
       renderSchedule();
+      renderWishList();
     }
   }
 
@@ -2125,6 +2197,140 @@
       .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
   }
 
+  // ---------- Wishlist (願望清單) ----------
+  function renderWishList(){
+    const container = $('#wishList');
+    const entries = Object.entries(state.wishlist || {});
+    if (!entries.length) {
+      container.innerHTML = '<div class="card"><div class="empty">還沒有願望清單，點擊新增加入第一個願望！</div></div>';
+      return;
+    }
+    entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    const rows = entries.map(([id, item]) => wishRowHtml(id, item)).join('');
+    container.innerHTML = `<div class="card">${rows}</div>`;
+
+    container.onclick = (e) => {
+      const editBtn = e.target.closest('[data-wish-edit]');
+      if (editBtn) { e.stopPropagation(); openWishEdit(editBtn.dataset.wishEdit); return; }
+      const delBtn = e.target.closest('[data-wish-del]');
+      if (delBtn) {
+        e.stopPropagation();
+        const id = delBtn.dataset.wishDel;
+        if (confirm('確定刪除此願望？')) tripRef.child('wishlist/' + id).remove();
+        return;
+      }
+      if (e.target.closest('a')) return; // Don't toggle when tapping map link
+      const row = e.target.closest('.wish-row');
+      if (row) row.classList.toggle('expanded');
+    };
+  }
+
+  function wishRowHtml(id, item){
+    const title = item.title || '未命名';
+    const titleHtml = item.mapUrl
+      ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${escapeHtml(title)}</a>`
+      : escapeHtml(title);
+    const noteHtml = item.note ? `<div class="wish-note">${escapeHtml(item.note)}</div>` : '';
+    return `<div class="wish-row" data-id="${id}">
+      <div class="wish-icon">⭐</div>
+      <div class="wish-info">
+        <div class="wish-title">${titleHtml}</div>
+        ${noteHtml}
+      </div>
+    </div>
+    <div class="wish-actions">
+      <button class="edit" data-wish-edit="${id}">✎ 編輯</button>
+      <button class="delete" data-wish-del="${id}">🗑 刪除</button>
+    </div>`;
+  }
+
+  function defaultWishForm(){
+    return {
+      editingId: null,
+      title: '',
+      mapUrl: '',
+      note: ''
+    };
+  }
+
+  function openWishNew(){
+    state.wishForm = defaultWishForm();
+    $('#wishTitle').textContent = '新增願望';
+    renderWishForm();
+    $('#wishOverlay').classList.add('open');
+  }
+
+  function openWishEdit(id){
+    const item = state.wishlist[id];
+    if (!item) return;
+    state.wishForm = {
+      editingId: id,
+      title: item.title || '',
+      mapUrl: item.mapUrl || '',
+      note: item.note || ''
+    };
+    $('#wishTitle').textContent = '編輯願望';
+    renderWishForm();
+    $('#wishOverlay').classList.add('open');
+  }
+
+  function closeWishOverlay(){ $('#wishOverlay').classList.remove('open'); }
+
+  function renderWishForm(){
+    const f = state.wishForm;
+    $('#wishFormBody').innerHTML = `
+      <div class="form-group">
+        <div class="form-row"><div class="form-label">願望</div>
+          <input class="form-input" id="wf-title" placeholder="想去的地方或體驗" value="${escapeHtml(f.title)}" />
+        </div>
+        <div class="form-row"><div class="form-label">地圖連結</div>
+          <input class="form-input" id="wf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-row col">
+          <div class="form-label" style="width:auto;align-self:flex-start;margin-bottom:6px">備註</div>
+          <textarea id="wf-note" class="form-input left" rows="3" style="border:1px solid var(--border);border-radius:8px;padding:8px;resize:vertical">${escapeHtml(f.note)}</textarea>
+        </div>
+      </div>
+    `;
+    $('#wf-title').addEventListener('input', e => state.wishForm.title = e.target.value);
+    $('#wf-map').addEventListener('input', e => state.wishForm.mapUrl = e.target.value);
+    $('#wf-note').addEventListener('input', e => state.wishForm.note = e.target.value);
+  }
+
+  function saveWish(){
+    const f = state.wishForm;
+    const title = (f.title || '').trim();
+    if (!title) { showToast('請輸入願望'); return; }
+    const data = {
+      title,
+      mapUrl: (f.mapUrl || '').trim(),
+      note: (f.note || '').trim()
+    };
+
+    const btn = $('#wishSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '儲存中...';
+
+    let promise;
+    if (f.editingId) {
+      const existing = state.wishlist[f.editingId] || {};
+      data.createdAt = existing.createdAt || firebase.database.ServerValue.TIMESTAMP;
+      data.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('wishlist/' + f.editingId).set(data);
+    } else {
+      data.createdAt = firebase.database.ServerValue.TIMESTAMP;
+      promise = tripRef.child('wishlist').push().set(data);
+    }
+
+    promise.then(() => {
+      closeWishOverlay();
+      showToast(f.editingId ? '已更新' : '已新增');
+    }).catch(err => showToast('儲存失敗：' + err.message))
+      .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
+  }
+
   // ---------- View switching ----------
   function setView(v){
     state.currentView = v;
@@ -2144,6 +2350,13 @@
   $('#schedSaveBtn').addEventListener('click', saveSchedule);
   $('#schedOverlay').addEventListener('click', e => {
     if (e.target.id === 'schedOverlay') closeSchedOverlay();
+  });
+
+  $('#wishAddBtn').addEventListener('click', openWishNew);
+  $('#closeWish').addEventListener('click', closeWishOverlay);
+  $('#wishSaveBtn').addEventListener('click', saveWish);
+  $('#wishOverlay').addEventListener('click', e => {
+    if (e.target.id === 'wishOverlay') closeWishOverlay();
   });
 
   // ---------- Tabs ----------
@@ -2336,6 +2549,11 @@
   tripRef.child('schedule').on('value', snap => {
     state.schedule = snap.val() || {};
     if (state.meta) renderSchedule();
+  });
+
+  tripRef.child('wishlist').on('value', snap => {
+    state.wishlist = snap.val() || {};
+    if (state.meta) renderWishList();
   });
 
   // Initial icons
