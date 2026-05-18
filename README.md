@@ -71,26 +71,6 @@ This is a static site. From the project directory:
 npx vercel
 ```
 
-`vercel.json` rewrites `/` to `travel-tracker.html` so users don't need to type the filename.
-
-## Firebase Setup
-
-The app connects to a Realtime Database at:
-
-```
-https://travel-2cd12-default-rtdb.asia-southeast1.firebasedatabase.app/
-```
-
-Set permissive rules in the Firebase console (Realtime Database → Rules):
-
-```json
-{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}
-```
 
 > ⚠️ Open rules are fine for a private trip among friends but expose all data publicly. Tighten before serious use.
 
@@ -159,3 +139,6 @@ When **顯示貨幣 = 原始貨幣（不轉換）**, each currency is settled in
 - Lucide icons via CDN
 - Inter font via Google Fonts
 - exchangerate.fun for currency rates (no API key)
+
+git reset --hard <>
+ git push --force origin dev

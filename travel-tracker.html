@@ -837,11 +837,11 @@
     white-space: normal;
   }
   .sched-actions {
-    display: none;
-    gap: 16px;
-    padding: 0 14px 12px 96px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
   }
-  .sched-row.expanded + .sched-actions { display: flex; }
   .sched-actions button { font-size: 13px; padding: 4px 0; }
   .sched-actions .edit { color: var(--primary); font-weight: 600; }
   .sched-actions .delete { color: var(--error); }
@@ -913,14 +913,25 @@
   .wish-row:not(.expanded) .wish-note { display: none; }
   .wish-row:not(.expanded) .wish-locs { overflow: visible; }
   .wish-actions {
-    display: none;
-    gap: 16px;
-    padding: 0 14px 12px 58px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
+    margin-top: 2px;
   }
-  .wish-row.expanded + .wish-actions { display: flex; }
   .wish-actions button { font-size: 13px; padding: 4px 0; }
   .wish-actions .edit { color: var(--primary); font-weight: 600; }
   .wish-actions .delete { color: var(--error); }
+  .toggle-actions-btn {
+    font-size: 14px;
+    padding: 4px 8px;
+    color: var(--text-muted);
+    border-radius: 6px;
+    line-height: 1;
+  }
+  .toggle-actions-btn:hover { background: var(--bg); }
+  .toggle-actions-btn.off { color: var(--border); }
+  .wish-actions-hidden .wish-actions { display: none; }
   .wish-form-list { display: flex; flex-direction: column; gap: 10px; }
   .wish-loc-row {
     border: 1px solid var(--border);
@@ -1008,6 +1019,7 @@
     <div class="section">
       <div class="section-title-row">
         <h2 class="section-title" style="margin:0">Marked清單</h2>
+        <button class="toggle-actions-btn" id="wishToggleActions" title="顯示/隱藏編輯刪除">✎</button>
       </div>
       <div id="wishList">
         <div class="card"><div class="skeleton skel-row"></div></div>
@@ -1129,6 +1141,7 @@
     wishlist: {},      // { id: wishItem }
     currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist'
     schedSort: 'date',     // 'date' | 'created'
+    showWishActions: true,
     schedForm: {           // edit form state for schedule items
       editingId: null,
       date: '',
@@ -2134,10 +2147,10 @@
         <div class="sched-title">${titleHtml}</div>
         ${noteHtml}
       </div>
-    </div>
-    <div class="sched-actions">
-      <button class="edit" data-sched-edit="${id}">✎ 編輯</button>
-      <button class="delete" data-sched-del="${id}">🗑 刪除</button>
+      <div class="sched-actions">
+        <button class="edit" data-sched-edit="${id}">✎ 編輯</button>
+        <button class="delete" data-sched-del="${id}">🗑 刪除</button>
+      </div>
     </div>`;
   }
 
@@ -2287,7 +2300,7 @@
     }
     entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
     const rows = entries.map(([id, item]) => wishRowHtml(id, item)).join('');
-    container.innerHTML = `<div class="card">${rows}</div>`;
+    container.innerHTML = `<div class="card ${state.showWishActions ? '' : 'wish-actions-hidden'}">${rows}</div>`;
 
     container.onclick = (e) => {
       const editBtn = e.target.closest('[data-wish-edit]');
@@ -2329,10 +2342,10 @@
         ${locHtml ? `<div class=\"wish-locs\">${locHtml}</div>` : ''}
         ${noteHtml}
       </div>
-    </div>
-    <div class="wish-actions">
-      <button class="edit" data-wish-edit="${id}">✎ 編輯</button>
-      <button class="delete" data-wish-del="${id}">🗑 刪除</button>
+      <div class="wish-actions">
+        <button class="edit" data-wish-edit="${id}">✎ 編輯</button>
+        <button class="delete" data-wish-del="${id}">🗑 刪除</button>
+      </div>
     </div>`;
   }
 
@@ -2481,6 +2494,11 @@
 
   $('#closeWish').addEventListener('click', closeWishOverlay);
   $('#wishSaveBtn').addEventListener('click', saveWish);
+  $('#wishToggleActions').addEventListener('click', () => {
+    state.showWishActions = !state.showWishActions;
+    $('#wishToggleActions').classList.toggle('off', !state.showWishActions);
+    renderWishList();
+  });
   $('#wishOverlay').addEventListener('click', e => {
     if (e.target.id === 'wishOverlay') closeWishOverlay();
   });
