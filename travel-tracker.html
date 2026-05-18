@@ -896,10 +896,17 @@
     border-radius: 8px;
     background: var(--bg);
     border: 1px solid var(--border);
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    gap: 8px;
     width: fit-content;
     max-width: 100%;
+  }
+  .wish-loc-note {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin-left: auto;
   }
   .wish-loc a { color: var(--primary); text-decoration: none; }
   .wish-note {
@@ -1141,7 +1148,7 @@
     wishlist: {},      // { id: wishItem }
     currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist'
     schedSort: 'date',     // 'date' | 'created'
-    showWishActions: true,
+    showWishActions: false,
     schedForm: {           // edit form state for schedule items
       editingId: null,
       date: '',
@@ -2281,7 +2288,8 @@
     if (hasLocationsField && Array.isArray(item.locations)) {
       locations = item.locations.map(loc => ({
         name: loc && loc.name ? String(loc.name) : '',
-        mapUrl: loc && loc.mapUrl ? String(loc.mapUrl) : ''
+        mapUrl: loc && loc.mapUrl ? String(loc.mapUrl) : '',
+        note: loc && loc.note ? String(loc.note) : ''
       })).filter(loc => loc.name || loc.mapUrl);
     }
     if (!hasLocationsField && !locations.length) {
@@ -2331,7 +2339,8 @@
           const linkHtml = loc.mapUrl
             ? `<a href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">${nameHtml}</a>`
             : nameHtml;
-          return `<div class="wish-loc">${linkHtml}</div>`;
+          const locNoteHtml = loc.note ? `<span class="wish-loc-note">${escapeHtml(loc.note)}</span>` : '';
+          return `<div class="wish-loc">${linkHtml}${locNoteHtml}</div>`;
         }).join('')
       : '';
     const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
@@ -2399,6 +2408,7 @@
               <div class="wish-loc-row">
                 <input class="wish-input" data-loc-name="${i}" placeholder="地點名稱" value="${escapeHtml(loc.name || '')}" />
                 <input class="wish-input" data-loc-map="${i}" placeholder="地圖連結（可留空）" value="${escapeHtml(loc.mapUrl || '')}" />
+                <input class="wish-input" data-loc-note="${i}" placeholder="備註（可留空）" value="${escapeHtml(loc.note || '')}" />
                 <button class="wish-remove" type="button" data-loc-remove="${i}">移除</button>
               </div>
             `).join('')}
@@ -2416,6 +2426,10 @@
       const idx = Number(inp.dataset.locMap);
       inp.addEventListener('input', e => { state.wishForm.locations[idx].mapUrl = e.target.value; });
     });
+    $$('#wishLocations [data-loc-note]').forEach(inp => {
+      const idx = Number(inp.dataset.locNote);
+      inp.addEventListener('input', e => { state.wishForm.locations[idx].note = e.target.value; });
+    });
     $$('#wishLocations [data-loc-remove]').forEach(btn => {
       const idx = Number(btn.dataset.locRemove);
       btn.addEventListener('click', () => {
@@ -2424,7 +2438,7 @@
       });
     });
     $('#wishAddLocation').addEventListener('click', () => {
-      state.wishForm.locations.push({ name: '', mapUrl: '' });
+      state.wishForm.locations.push({ name: '', mapUrl: '', note: '' });
       renderWishForm();
     });
   }
@@ -2435,7 +2449,8 @@
     if (!title) { showToast('請輸入種類'); return; }
     const rawLocations = (f.locations || []).map(loc => ({
       name: (loc && loc.name ? String(loc.name) : '').trim(),
-      mapUrl: (loc && loc.mapUrl ? String(loc.mapUrl) : '').trim()
+      mapUrl: (loc && loc.mapUrl ? String(loc.mapUrl) : '').trim(),
+      note: (loc && loc.note ? String(loc.note) : '').trim()
     }));
     if (rawLocations.some(loc => loc.mapUrl && !loc.name)) {
       showToast('請填寫地點名稱');
