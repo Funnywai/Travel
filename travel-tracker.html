@@ -964,7 +964,7 @@
   <div class="view-switcher">
     <button class="view-tab active" data-view="ledger">💰 記賬</button>
     <button class="view-tab" data-view="schedule">📅 行程</button>
-    <button class="view-tab" data-view="wishlist">⭐ 願望</button>
+    <button class="view-tab" data-view="wishlist">⭐ Marked</button>
   </div>
 
   <div id="ledgerView">
@@ -1007,7 +1007,7 @@
   <div id="wishView" style="display:none">
     <div class="section">
       <div class="section-title-row">
-        <h2 class="section-title" style="margin:0">願望清單</h2>
+        <h2 class="section-title" style="margin:0">Marked清單</h2>
       </div>
       <div id="wishList">
         <div class="card"><div class="skeleton skel-row"></div></div>
@@ -1052,7 +1052,7 @@
   <div class="sheet">
     <div class="sheet-header">
       <button class="icon-btn" id="closeWish" aria-label="關閉"><i data-lucide="x"></i></button>
-      <div style="flex:1;text-align:center;font-weight:600" id="wishTitle">新增願望</div>
+      <div style="flex:1;text-align:center;font-weight:600" id="wishTitle">新增Marked</div>
       <button class="save-btn" id="wishSaveBtn">儲存</button>
     </div>
     <div class="form-body" id="wishFormBody"></div>
@@ -2259,7 +2259,7 @@
       .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
   }
 
-  // ---------- Wishlist (願望清單) ----------
+  // ---------- Wishlist (Marked清單) ----------
   function normalizeWishItem(item){
     const title = item && item.title ? String(item.title) : '';
     const note = item && item.note ? String(item.note) : '';
@@ -2282,7 +2282,7 @@
     const container = $('#wishList');
     const entries = Object.entries(state.wishlist || {});
     if (!entries.length) {
-      container.innerHTML = '<div class="card"><div class="empty">還沒有願望種類，點擊新增加入第一個！</div></div>';
+      container.innerHTML = '<div class="card"><div class="empty">還沒有Marked種類，點擊新增加入第一個！</div></div>';
       return;
     }
     entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
@@ -2296,7 +2296,7 @@
       if (delBtn) {
         e.stopPropagation();
         const id = delBtn.dataset.wishDel;
-        if (confirm('確定刪除此願望？')) tripRef.child('wishlist/' + id).remove();
+        if (confirm('確定刪除此Marked？')) tripRef.child('wishlist/' + id).remove();
         return;
       }
       if (e.target.closest('a')) return; // Don't toggle when tapping map link
@@ -2347,7 +2347,7 @@
 
   function openWishNew(){
     state.wishForm = defaultWishForm();
-    $('#wishTitle').textContent = '新增願望';
+    $('#wishTitle').textContent = '新增Marked';
     renderWishForm();
     $('#wishOverlay').classList.add('open');
   }
@@ -2362,7 +2362,7 @@
       locations: normalized.locations,
       note: normalized.note || ''
     };
-    $('#wishTitle').textContent = '編輯願望';
+    $('#wishTitle').textContent = '編輯Marked';
     renderWishForm();
     $('#wishOverlay').classList.add('open');
   }

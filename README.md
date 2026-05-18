@@ -13,7 +13,8 @@ Track shared trip expenses across multiple currencies, see real-time balances, a
 - **Settlement suggestions** — greedy min-transactions algorithm shows who owes whom, per currency or merged
 - **Records grouped by date** — daily subtotals + grand total at the top
 - **行程 (Itinerary) view** — share a trip schedule alongside the ledger: title, date, time, location, map link, category, and notes; grouped by date or sorted by creation
-- **Edit & delete** records and schedule items inline
+- **Marked (Wishlist) view** — collect places you want to visit: each wish has a title, multiple locations with optional map links, and notes
+- **Edit & delete** records, schedule items, and wishes inline
 - **Real-time sync** — all members see the same data via Firebase RTDB; share by URL hash
 - **Inline group rename** — tap the title to edit
 - **No storage permissions needed** — state lives in memory + URL hash + Firebase only
@@ -31,7 +32,7 @@ The app loads Firebase SDK and fonts from CDNs, so it must be served over HTTP (
 
 ```bash
 cd /path/to/Travel
-python -m http.server 8000
+python -m http.server 3000
 ```
 
 Open http://localhost:8000
@@ -105,7 +106,7 @@ trips/{tripId}/
         name: string
   records/
     {recordId}/
-      type: "支出" | "轉賬"
+      type: "支出" | "預付" | "轉賬"
       amount: number
       currency: string
       note: string
@@ -124,7 +125,14 @@ trips/{tripId}/
       time: string  (HH:MM, optional)
       location: string  (optional)
       mapUrl: string    (optional)
-      category: string  (景點/餐飲/交通/住宿/購物/活動/休息/其他)
+      category: string  (景點/餐飲/交通/住宿/購物/活動/出發·回程/其他)
+      note: string      (optional)
+      createdAt: timestamp
+      updatedAt: timestamp  (only on edit)
+  wishlist/
+    {wishId}/
+      title: string
+      locations: [{ name: string, mapUrl: string }]
       note: string      (optional)
       createdAt: timestamp
       updatedAt: timestamp  (only on edit)
