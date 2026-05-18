@@ -2426,7 +2426,6 @@
       : '';
     const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
     return `<div class="wish-row" data-id="${id}">
-      <div class="wish-icon">⭐</div>
       <div class="wish-info">
         <div class="wish-title">${escapeHtml(title)}${locSummary ? `<span class=\"wish-count\">${locSummary}</span>` : ''}</div>
         ${locHtml ? `<div class=\"wish-locs\">${locHtml}</div>` : ''}
