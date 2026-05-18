@@ -889,6 +889,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .sched-title a { color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--border); }
   .sched-loc {
     font-size: 13px;
     color: var(--text-muted);
@@ -1020,6 +1021,7 @@
   .toggle-actions-btn:hover { background: var(--bg); }
   .toggle-actions-btn.off { color: var(--border); }
   .wish-actions-hidden .wish-actions { display: none; }
+  .sched-actions-hidden .sched-actions { display: none; }
   .wish-form-list { display: flex; flex-direction: column; gap: 10px; }
   .wish-loc-row {
     border: 1px solid var(--border);
@@ -1095,7 +1097,10 @@
     <div class="section">
       <div class="section-title-row">
         <h2 class="section-title" style="margin:0">行程安排</h2>
-        <button class="section-toggle" id="schedSort">時間排序</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="toggle-actions-btn" id="schedToggleActions" title="顯示/隱藏編輯刪除">✎</button>
+          <button class="section-toggle" id="schedSort">時間排序</button>
+        </div>
       </div>
       <div id="scheduleList">
         <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
@@ -1230,6 +1235,7 @@
     currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist'
     schedSort: 'date',     // 'date' | 'created'
     showWishActions: false,
+    showSchedActions: false,
     schedForm: {           // edit form state for schedule items
       editingId: null,
       date: '',
@@ -2170,7 +2176,7 @@
     if (state.schedSort === 'created') {
       entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
       const rows = entries.map(([id, item]) => schedRowHtml(id, item)).join('');
-      container.innerHTML = `<div class="card">${rows}</div>`;
+      container.innerHTML = `<div class="card ${state.showSchedActions ? '' : 'sched-actions-hidden'}">${rows}</div>`;
     } else {
       // Group by date, then sort by time within each day
       const groups = {};
@@ -2198,7 +2204,7 @@
             <span>${escapeHtml(formatDateLabel(date))}</span>
             <span class="sched-day-count">${items.length} 項</span>
           </div>
-          <div class="card">${rows}</div>
+          <div class="card ${state.showSchedActions ? '' : 'sched-actions-hidden'}">${rows}</div>
         </div>`;
       }).join('');
     }
@@ -2588,6 +2594,12 @@
   $('#schedSort').addEventListener('click', () => {
     state.schedSort = state.schedSort === 'date' ? 'created' : 'date';
     $('#schedSort').textContent = state.schedSort === 'date' ? '時間排序' : '新增順序';
+    renderSchedule();
+  });
+
+  $('#schedToggleActions').addEventListener('click', () => {
+    state.showSchedActions = !state.showSchedActions;
+    $('#schedToggleActions').classList.toggle('off', !state.showSchedActions);
     renderSchedule();
   });
 

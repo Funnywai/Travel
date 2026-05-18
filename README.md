@@ -1,20 +1,23 @@
 # 旅行記賬 (Travel Expense Tracker)
 
-A mobile-first travel expense tracker. Single-file HTML + Firebase Realtime Database. No build step, no npm, no localStorage.
+A mobile-first travel expense tracker with an editorial travel-journal aesthetic. Single-file HTML + Firebase Realtime Database. No build step, no npm, no localStorage.
 
-Track shared trip expenses across multiple currencies, see real-time balances, and get a minimum-transaction settlement plan.
+Track shared trip expenses across multiple currencies, see real-time balances, manage a shared itinerary, and collect places you want to visit.
 
 ## Features
 
+- **Three views** — 記賬 (ledger), 行程 (itinerary), Marked (wishlist)
 - **Multiple payers and participants per record** — split bills by exact amount, not just equally
 - **Manual amounts with auto-redistribute** — lock any row, the rest divides the remainder evenly; unlock with one tap
 - **Multi-currency support** — JPY, HKD, TWD, KRW per record
 - **Live currency conversion** — pick a display currency in settings, all balances and totals convert via [exchangerate.fun](https://exchangerate.fun) (no API key)
 - **Settlement suggestions** — greedy min-transactions algorithm shows who owes whom, per currency or merged
 - **Records grouped by date** — daily subtotals + grand total at the top
-- **行程 (Itinerary) view** — share a trip schedule alongside the ledger: title, date, time, location, map link, category, and notes; grouped by date or sorted by creation
-- **Marked (Wishlist) view** — collect places you want to visit: each wish has a title, multiple locations with optional map links, and notes
-- **Edit & delete** records, schedule items, and wishes inline
+- **行程 (Itinerary) view** — share a trip schedule alongside the ledger: date, time, location, map link, category, and notes; grouped by date or sorted by creation
+- **Marked (Wishlist) view** — collect places you want to visit: each wish has a title, multiple locations (with optional map links and per-location notes), and a category note
+- **Edit & delete toggle** — `✎` buttons in Marked and 行程 headers show/hide per-item edit/delete controls
+- **Inline edit & delete** — records, schedule items, and wishes can be edited or removed
+- **Per-location 備註** — each location in a Marked entry can have its own note, displayed inline
 - **Real-time sync** — all members see the same data via Firebase RTDB; share by URL hash
 - **Inline group rename** — tap the title to edit
 - **No storage permissions needed** — state lives in memory + URL hash + Firebase only
@@ -109,11 +112,11 @@ trips/{tripId}/
       note: string      (optional)
       createdAt: timestamp
       updatedAt: timestamp  (only on edit)
-  wishlist/
-    {wishId}/
-      title: string
-      locations: [{ name: string, mapUrl: string }]
-      note: string      (optional)
+   wishlist/
+     {wishId}/
+       title: string
+       locations: [{ name: string, mapUrl: string, note: string }]
+       note: string      (optional)
       createdAt: timestamp
       updatedAt: timestamp  (only on edit)
 ```
@@ -137,8 +140,8 @@ When **顯示貨幣 = 原始貨幣（不轉換）**, each currency is settled in
 - Single HTML file — vanilla JS, CSS variables, no build tools
 - Firebase Realtime Database SDK v10 (compat build) via CDN
 - Lucide icons via CDN
-- Inter font via Google Fonts
+- Noto Serif TC + LXGW WenKai Mono TC + DM Sans via Google Fonts
 - exchangerate.fun for currency rates (no API key)
-
-git reset --hard <>
- git push --force origin dev
+- `.opencode/skills/frontend-design/SKILL.md` — design skill for future UI work
+git reset --hard <ver>
+git push --force origin dev
