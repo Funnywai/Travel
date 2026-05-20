@@ -426,35 +426,6 @@
   }
 
   /* Category grid */
-  .cat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    padding: 16px;
-  }
-  .cat-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 4px;
-    border-radius: 12px;
-    transition: all .2s;
-  }
-  .cat-cell:hover { background: var(--bg); }
-  .cat-cell.active { background: var(--primary-light); }
-  .cat-icon {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    background: var(--surface-alt);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 24px;
-    transition: all .2s;
-  }
-  .cat-cell.active .cat-icon { background: var(--primary); color: white; transform: scale(1.1); }
-  .cat-label { font-size: 12px; color: var(--text-muted); }
-  .cat-cell.active .cat-label { color: var(--primary); font-weight: 600; }
-
   /* Chips */
   .chips {
     display: flex;
@@ -855,86 +826,100 @@
   .sched-day-count { font-weight: 500; font-size: 12px; }
   .sched-row {
     display: flex;
-    gap: 14px;
-    padding: 14px 18px;
+    flex-direction: column;
+    gap: 0;
+    padding: 12px 18px;
     cursor: pointer;
-    align-items: center;
     transition: background .15s;
+    position: relative;
   }
   .sched-row:hover { background: var(--surface-alt); }
   .sched-row + .sched-row { border-top: 1px solid var(--border); }
-  .sched-time {
+
+  .sched-timeline {
+    position: relative;
+    padding-left: 22px;
+  }
+  .sched-timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    background: var(--border);
+    border-radius: 1px;
+  }
+
+  .sched-leg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    position: relative;
+  }
+  .sched-leg::before {
+    content: '';
+    position: absolute;
+    left: -17px;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .sched-leg.sched-end::before {
+    background: var(--accent-glow);
+    width: 6px;
+    height: 6px;
+  }
+  .sched-row > .sched-leg:first-child:last-child::before { display: none; }
+
+  .sched-leg .sched-time {
     width: 50px;
     flex-shrink: 0;
     font-weight: 700;
     color: var(--accent);
     font-size: 14px;
-    text-align: center;
     line-height: 1.2;
     font-family: 'DM Sans', system-ui, sans-serif;
   }
-  .sched-time.no-time { color: var(--text-muted); font-size: 18px; }
-  .sched-time.sched-time-range {
-    width: auto; min-width: 50px; font-size: 12px;
-  }
-  .sched-icon {
-    font-size: 22px;
-    flex-shrink: 0;
-    width: 32px;
-    text-align: center;
-    line-height: 1.2;
-  }
-  .sched-info { flex: 1; min-width: 0; }
-  .sched-title {
+  .sched-leg .sched-time.sched-no-time { color: var(--text-muted); font-size: 16px; }
+  .sched-leg .sched-loc {
+    flex: 1;
+    min-width: 0;
     font-weight: 600;
-    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.3;
   }
-  .sched-title a { color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--border); }
-  .sched-loc {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-top: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .sched-loc a {
-    color: var(--accent);
-    text-decoration: none;
-  }
+  .sched-leg .sched-loc a { color: inherit; }
+
   .sched-note {
     font-size: 12px;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin: 4px 0 0;
     white-space: pre-wrap;
     word-break: break-word;
+    padding-left: 22px;
   }
-  .sched-row.expanded .sched-loc,
+  .sched-row.expanded .sched-leg .sched-loc,
   .sched-row.expanded .sched-note {
     white-space: normal;
   }
+
   .sched-actions {
     display: flex;
     gap: 8px;
-    flex-shrink: 0;
-    margin-left: auto;
+    margin-top: 6px;
+    justify-content: flex-end;
   }
   .sched-actions button { font-size: 13px; padding: 4px 0; }
   .sched-actions .edit { color: var(--accent); font-weight: 600; }
   .sched-actions .delete { color: var(--error); }
-
-  .cat-grid-sched {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    padding: 16px;
-  }
 
   /* Schedule mode toggle */
   .sched-mode-toggle {
@@ -1305,7 +1290,7 @@
       location: '',
       endLocation: '',
       mapUrl: '',
-      category: '景點',
+      endMapUrl: '',
       note: ''
     },
     wishForm: {            // edit form state for wishlist items
@@ -1315,7 +1300,6 @@
       note: ''
     },
     currentTab: '支出',
-    selectedCategory: '餐飲',
     form: {
       amount: '',
       note: '',
@@ -1415,30 +1399,6 @@
       renderWishList();
     }
   }
-
-  const CATEGORIES = [
-    { key:'餐飲', emoji:'🍜' },
-    { key:'交通', emoji:'🚌' },
-    { key:'住宿', emoji:'🏨' },
-    { key:'購物', emoji:'🛍️' },
-    { key:'景點', emoji:'🎡' },
-    { key:'娛樂', emoji:'🎮' },
-    { key:'機票', emoji:'✈️' },
-    { key:'其他', emoji:'📦' }
-  ];
-  const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c.emoji]));
-
-  const SCHED_CATEGORIES = [
-    { key:'景點', emoji:'🎡' },
-    { key:'餐飲', emoji:'🍜' },
-    { key:'交通', emoji:'🚌' },
-    { key:'住宿', emoji:'🏨' },
-    { key:'購物', emoji:'🛍️' },
-    { key:'活動', emoji:'🎫' },
-    { key:'出發/回程', emoji:'✈️' },
-    { key:'其他', emoji:'📌' }
-  ];
-  const SCHED_CAT_BY_KEY = Object.fromEntries(SCHED_CATEGORIES.map(c => [c.key, c.emoji]));
 
   // ---------- Helpers ----------
   const $ = (s, el=document) => el.querySelector(s);
@@ -1743,8 +1703,7 @@
 
   function recordRowHtml(id, r){
     const typeClass = r.type === '預付' ? 't-prepaid' : r.type === '轉賬' ? 't-transfer' : '';
-    const icon = r.type === '支出' ? (CAT_BY_KEY[r.category] || '📦')
-      : r.type === '預付' ? '💼' : '🔄';
+    const icon = r.type === '預付' ? '💼' : r.type === '轉賬' ? '🔄' : '💰';
     let detail = '';
     if (r.type === '轉賬') {
       const from = r.payer || r.transferFrom;
@@ -1766,10 +1725,9 @@
     return `<div class="record-row" data-id="${id}">
         <div class="record-icon"><span style="font-size:20px">${icon}</span></div>
         <div class="record-info">
-          <div class="record-title">${escapeHtml(r.note || r.category || r.type)}</div>
+          <div class="record-title">${escapeHtml(r.note || r.type)}</div>
           <div class="record-sub">
             <span class="type-badge ${typeClass}">${r.type}</span>
-            ${r.category ? `<span>${escapeHtml(r.category)}</span>` : ''}
           </div>
         </div>
         <div class="record-amount">${(r.amount || 0).toFixed(1)} ${r.currency}</div>
@@ -1848,7 +1806,6 @@
 
   function openInput(){
     state.currentTab = '支出';
-    state.selectedCategory = '餐飲';
     state.form = defaultForm();
     $$('#tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.currentTab));
     renderForm();
@@ -1883,7 +1840,6 @@
         const share = (Number(r.amount) || 0) / r.participants.length;
         r.participants.forEach(id => { state.form.shares[id] = round2(share); });
       }
-      if (r.type === '支出') state.selectedCategory = r.category || '餐飲';
     }
     $$('#tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.currentTab));
     renderForm();
@@ -1942,16 +1898,6 @@
     </select>`;
 
     let html = '';
-    if (tab === '支出') {
-      html += `<div class="form-group">
-        <div class="cat-grid" id="catGrid">
-          ${CATEGORIES.map(c => `<div class="cat-cell ${c.key===state.selectedCategory?'active':''}" data-cat="${c.key}">
-            <div class="cat-icon">${c.emoji}</div>
-            <div class="cat-label">${c.key}</div>
-          </div>`).join('')}
-        </div>
-      </div>`;
-    }
     html += `<div class="form-group">
       <div class="form-row"><div class="form-label">總計</div>
         <input class="form-input" id="f-amount" type="text" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
@@ -2014,13 +1960,6 @@
     $('#f-note').addEventListener('input', e => state.form.note = e.target.value);
     $('#f-date').addEventListener('change', e => state.form.date = e.target.value);
     $('#f-currency').addEventListener('change', e => { state.form.currency = e.target.value; renderForm(); });
-
-    if (tab === '支出') {
-      $$('#catGrid .cat-cell').forEach(c => c.addEventListener('click', () => {
-        state.selectedCategory = c.dataset.cat;
-        $$('#catGrid .cat-cell').forEach(x => x.classList.toggle('active', x === c));
-      }));
-    }
 
     if (tab === '轉賬') {
       $$('#chipsPayer .chip').forEach(ch => ch.addEventListener('click', () => {
@@ -2197,7 +2136,6 @@
         payers: payersOut,
         shares: sharesOut
       };
-      if (tab === '支出') base.category = state.selectedCategory;
     }
 
     const saveBtn = $('#saveBtn');
@@ -2289,44 +2227,39 @@
   }
 
   function schedRowHtml(id, item){
-    const icon = SCHED_CAT_BY_KEY[item.category] || '📌';
     const isRange = !!(item.endLocation || item.mode === 'range');
     const hasEndTime = !!item.endTime;
+    const startLoc = item.location || item.title || '未命名';
+    const endLoc = isRange ? (item.endLocation || '·') : startLoc;
 
-    let timeHtml, timeClass;
-    if (item.time && hasEndTime) {
-      timeHtml = escapeHtml(item.time) + '–' + escapeHtml(item.endTime);
-      timeClass = 'sched-time-range';
-    } else if (item.time) {
-      timeHtml = escapeHtml(item.time);
-      timeClass = '';
-    } else {
-      timeHtml = '·';
-      timeClass = 'no-time';
+    const startLocHtml = item.mapUrl
+      ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${escapeHtml(startLoc)}</a>`
+      : escapeHtml(startLoc);
+
+    const startTime = item.time || '·';
+    const startTimeCls = item.time ? '' : ' sched-no-time';
+    const startLegHtml = `<div class="sched-leg">
+      <span class="sched-time${startTimeCls}">${escapeHtml(startTime)}</span>
+      <span class="sched-loc">${startLocHtml}</span>
+    </div>`;
+
+    let endLegHtml = '';
+    if (hasEndTime) {
+      const endLocHtml = item.endMapUrl
+        ? `<a href="${escapeHtml(item.endMapUrl)}" target="_blank" rel="noopener">${escapeHtml(endLoc)}</a>`
+        : escapeHtml(endLoc);
+      endLegHtml = `<div class="sched-leg sched-end">
+        <span class="sched-time">${escapeHtml(item.endTime)}</span>
+        <span class="sched-loc">${endLocHtml}</span>
+      </div>`;
     }
 
-    const startLoc = escapeHtml(item.location || item.title || '未命名');
-    let titleHtml;
-    if (isRange) {
-      const endLoc = escapeHtml(item.endLocation || '·');
-      const text = `${startLoc} → ${endLoc}`;
-      titleHtml = item.mapUrl
-        ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${text}</a>`
-        : text;
-    } else if (item.mapUrl) {
-      titleHtml = `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${startLoc}</a>`;
-    } else {
-      titleHtml = startLoc;
-    }
+    const timelineHtml = `<div class="sched-timeline">${startLegHtml}${endLegHtml}</div>`;
 
     const noteHtml = item.note ? `<div class="sched-note">${escapeHtml(item.note)}</div>` : '';
     return `<div class="sched-row" data-id="${id}">
-      <div class="sched-time ${timeClass}">${timeHtml}</div>
-      <div class="sched-icon">${icon}</div>
-      <div class="sched-info">
-        <div class="sched-title">${titleHtml}</div>
-        ${noteHtml}
-      </div>
+      ${timelineHtml}
+      ${noteHtml}
       <div class="sched-actions">
         <button class="edit" data-sched-edit="${id}">✎ 編輯</button>
         <button class="delete" data-sched-del="${id}">🗑 刪除</button>
@@ -2344,7 +2277,7 @@
       location: '',
       endLocation: '',
       mapUrl: '',
-      category: '景點',
+      endMapUrl: '',
       note: ''
     };
   }
@@ -2368,7 +2301,7 @@
       location: item.location || item.title || '',
       endLocation: item.endLocation || '',
       mapUrl: item.mapUrl || '',
-      category: item.category || '景點',
+      endMapUrl: item.endMapUrl || '',
       note: item.note || ''
     };
     $('#schedTitle').textContent = '編輯行程';
@@ -2381,10 +2314,6 @@
   function renderSchedForm(){
     const f = state.schedForm;
     const isRange = f.mode === 'range';
-    const catCells = SCHED_CATEGORIES.map(c => `<div class="cat-cell ${c.key===f.category?'active':''}" data-sched-cat="${c.key}">
-        <div class="cat-icon">${c.emoji}</div>
-        <div class="cat-label">${c.key}</div>
-      </div>`).join('');
 
     const singleActive = f.mode === 'single' ? ' active' : '';
     const rangeActive = f.mode === 'range' ? ' active' : '';
@@ -2423,10 +2352,20 @@
         </div>
       `;
 
+    const mapFields = isRange ? `
+        <div class="form-row"><div class="form-label">地圖連結</div>
+          <input class="form-input" id="sf-map" placeholder="起點地圖 URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
+        </div>
+        <div class="form-row"><div class="form-label">地圖連結</div>
+          <input class="form-input" id="sf-endMap" placeholder="終點地圖 URL（可留空）" value="${escapeHtml(f.endMapUrl || '')}" />
+        </div>
+      ` : `
+        <div class="form-row"><div class="form-label">地圖連結</div>
+          <input class="form-input" id="sf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
+        </div>
+      `;
+
     $('#schedFormBody').innerHTML = `
-      <div class="form-group">
-        <div class="cat-grid-sched" id="schedCatGrid">${catCells}</div>
-      </div>
       <div class="form-group">
         <div class="sched-mode-toggle" id="schedModeToggle">
           <div class="sched-mode-option${singleActive}" data-sched-mode="single">📍 單點</div>
@@ -2440,9 +2379,7 @@
         <div class="form-row date-row"><div class="form-label">日期</div>
           <input class="form-input" id="sf-date" type="date" value="${escapeHtml(f.date)}" />
         </div>
-        <div class="form-row"><div class="form-label">地圖連結</div>
-          <input class="form-input" id="sf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
-        </div>
+        ${mapFields}
       </div>
       <div class="form-group">
         <div class="form-row col">
@@ -2458,12 +2395,6 @@
       state.schedForm.mode = opt.dataset.schedMode;
       renderSchedForm();
     });
-    $('#schedCatGrid').addEventListener('click', e => {
-      const cell = e.target.closest('[data-sched-cat]');
-      if (!cell) return;
-      state.schedForm.category = cell.dataset.schedCat;
-      $$('#schedCatGrid .cat-cell').forEach(x => x.classList.toggle('active', x === cell));
-    });
     $('#sf-date').addEventListener('change', e => state.schedForm.date = e.target.value);
     $('#sf-time').addEventListener('change', e => state.schedForm.time = e.target.value);
     $('#sf-location').addEventListener('input', e => state.schedForm.location = e.target.value);
@@ -2474,6 +2405,8 @@
     if (endTimeEl) endTimeEl.addEventListener('change', e => state.schedForm.endTime = e.target.value);
     const endLocEl = $('#sf-endLocation');
     if (endLocEl) endLocEl.addEventListener('input', e => state.schedForm.endLocation = e.target.value);
+    const endMapEl = $('#sf-endMap');
+    if (endMapEl) endMapEl.addEventListener('input', e => state.schedForm.endMapUrl = e.target.value);
   }
 
   function saveSchedule(){
@@ -2489,7 +2422,7 @@
       time: f.time || '',
       endTime: (f.endTime || '').trim(),
       mapUrl: (f.mapUrl || '').trim(),
-      category: f.category || '景點',
+      endMapUrl: (f.endMapUrl || '').trim(),
       note: (f.note || '').trim()
     };
     if (f.mode === 'range') data.endLocation = endLocation;
