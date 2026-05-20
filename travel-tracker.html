@@ -874,6 +874,9 @@
     font-family: 'DM Sans', system-ui, sans-serif;
   }
   .sched-time.no-time { color: var(--text-muted); font-size: 18px; }
+  .sched-time.sched-time-range {
+    width: auto; min-width: 50px; font-size: 12px;
+  }
   .sched-icon {
     font-size: 22px;
     flex-shrink: 0;
@@ -931,6 +934,63 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     padding: 16px;
+  }
+
+  /* Schedule mode toggle */
+  .sched-mode-toggle {
+    display: flex;
+    background: var(--surface-alt);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin: 16px 16px 0;
+  }
+  .sched-mode-option {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    color: var(--text-muted);
+  }
+  .sched-mode-option.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Range route arrow */
+  .sched-route-arrow {
+    text-align: center;
+    font-size: 16px;
+    color: var(--accent);
+    padding: 6px 0;
+    margin: 0 18px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 2px;
+  }
+
+  /* Inline two-field row (label + input side by side) */
+  .form-row.split {
+    gap: 12px;
+  }
+  .form-row.split .form-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .form-row.split .form-field .form-label {
+    width: auto;
+    font-size: 12px;
+  }
+  .form-row.split .form-field .form-input {
+    width: 100%;
+    text-align: left;
   }
 
   /* Wishlist */
@@ -1238,9 +1298,12 @@
     showSchedActions: false,
     schedForm: {           // edit form state for schedule items
       editingId: null,
+      mode: 'single',       // 'single' | 'range'
       date: '',
       time: '',
+      endTime: '',
       location: '',
+      endLocation: '',
       mapUrl: '',
       category: '景點',
       note: ''
@@ -1891,7 +1954,7 @@
     }
     html += `<div class="form-group">
       <div class="form-row"><div class="form-label">總計</div>
-        <input class="form-input" id="f-amount" type="number" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
+        <input class="form-input" id="f-amount" type="text" inputmode="decimal" placeholder="輸入總支出" value="${state.form.amount}" />
       </div>
       <div class="form-row"><div class="form-label">備註</div>
         <input class="form-input" id="f-note" placeholder="備註(可留空)" value="${escapeHtml(state.form.note)}" />
@@ -2008,7 +2071,7 @@
           ${isLocked ? '<span class="ma-locked-dot" data-unlock="1" title="已手動輸入，點擊解除鎖定">🔒</span>' : ''}
         </div>
         ${selected
-          ? `<input class="ma-amount" type="number" inputmode="decimal" value="${amt}" data-amt="1" />
+          ? `<input class="ma-amount" type="text" inputmode="decimal" value="${amt}" data-amt="1" />
              <span class="ma-cur">${currency}</span>`
           : ''}
       </div>`;
@@ -2227,15 +2290,38 @@
 
   function schedRowHtml(id, item){
     const icon = SCHED_CAT_BY_KEY[item.category] || '📌';
-    const time = item.time ? escapeHtml(item.time) : '·';
-    const timeClass = item.time ? '' : 'no-time';
-    const loc = item.location || item.title || '未命名';
-    const titleHtml = item.mapUrl
-      ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${escapeHtml(loc)}</a>`
-      : escapeHtml(loc);
+    const isRange = !!(item.endLocation || item.mode === 'range');
+    const hasEndTime = !!item.endTime;
+
+    let timeHtml, timeClass;
+    if (item.time && hasEndTime) {
+      timeHtml = escapeHtml(item.time) + '–' + escapeHtml(item.endTime);
+      timeClass = 'sched-time-range';
+    } else if (item.time) {
+      timeHtml = escapeHtml(item.time);
+      timeClass = '';
+    } else {
+      timeHtml = '·';
+      timeClass = 'no-time';
+    }
+
+    const startLoc = escapeHtml(item.location || item.title || '未命名');
+    let titleHtml;
+    if (isRange) {
+      const endLoc = escapeHtml(item.endLocation || '·');
+      const text = `${startLoc} → ${endLoc}`;
+      titleHtml = item.mapUrl
+        ? `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${text}</a>`
+        : text;
+    } else if (item.mapUrl) {
+      titleHtml = `<a href="${escapeHtml(item.mapUrl)}" target="_blank" rel="noopener">${startLoc}</a>`;
+    } else {
+      titleHtml = startLoc;
+    }
+
     const noteHtml = item.note ? `<div class="sched-note">${escapeHtml(item.note)}</div>` : '';
     return `<div class="sched-row" data-id="${id}">
-      <div class="sched-time ${timeClass}">${time}</div>
+      <div class="sched-time ${timeClass}">${timeHtml}</div>
       <div class="sched-icon">${icon}</div>
       <div class="sched-info">
         <div class="sched-title">${titleHtml}</div>
@@ -2251,9 +2337,12 @@
   function defaultSchedForm(){
     return {
       editingId: null,
+      mode: 'single',
       date: todayStr(),
       time: '',
+      endTime: '',
       location: '',
+      endLocation: '',
       mapUrl: '',
       category: '景點',
       note: ''
@@ -2272,9 +2361,12 @@
     if (!item) return;
     state.schedForm = {
       editingId: id,
+      mode: item.mode || 'single',
       date: item.date || todayStr(),
       time: item.time || '',
+      endTime: item.endTime || '',
       location: item.location || item.title || '',
+      endLocation: item.endLocation || '',
       mapUrl: item.mapUrl || '',
       category: item.category || '景點',
       note: item.note || ''
@@ -2288,24 +2380,65 @@
 
   function renderSchedForm(){
     const f = state.schedForm;
+    const isRange = f.mode === 'range';
     const catCells = SCHED_CATEGORIES.map(c => `<div class="cat-cell ${c.key===f.category?'active':''}" data-sched-cat="${c.key}">
         <div class="cat-icon">${c.emoji}</div>
         <div class="cat-label">${c.key}</div>
       </div>`).join('');
+
+    const singleActive = f.mode === 'single' ? ' active' : '';
+    const rangeActive = f.mode === 'range' ? ' active' : '';
+
+    const locationFields = isRange ? `
+        <div class="form-row split">
+          <div class="form-field">
+            <div class="form-label">起點</div>
+            <input class="form-input" id="sf-location" placeholder="例如：香港" value="${escapeHtml(f.location)}" />
+          </div>
+          <div class="form-field">
+            <div class="form-label">時間</div>
+            <input class="form-input" id="sf-time" type="time" value="${escapeHtml(f.time)}" />
+          </div>
+        </div>
+        <div class="sched-route-arrow">↓</div>
+        <div class="form-row split">
+          <div class="form-field">
+            <div class="form-label">終點</div>
+            <input class="form-input" id="sf-endLocation" placeholder="例如：東京" value="${escapeHtml(f.endLocation)}" />
+          </div>
+          <div class="form-field">
+            <div class="form-label">時間</div>
+            <input class="form-input" id="sf-endTime" type="time" value="${escapeHtml(f.endTime)}" />
+          </div>
+        </div>
+      ` : `
+        <div class="form-row"><div class="form-label">地點</div>
+          <input class="form-input" id="sf-location" placeholder="地址或地名" value="${escapeHtml(f.location)}" />
+        </div>
+        <div class="form-row date-row"><div class="form-label">開始時間</div>
+          <input class="form-input" id="sf-time" type="time" value="${escapeHtml(f.time)}" />
+        </div>
+        <div class="form-row"><div class="form-label">結束時間</div>
+          <input class="form-input" id="sf-endTime" type="time" value="${escapeHtml(f.endTime)}" placeholder="可留空" />
+        </div>
+      `;
 
     $('#schedFormBody').innerHTML = `
       <div class="form-group">
         <div class="cat-grid-sched" id="schedCatGrid">${catCells}</div>
       </div>
       <div class="form-group">
-        <div class="form-row"><div class="form-label">地點</div>
-          <input class="form-input" id="sf-location" placeholder="地址或地名" value="${escapeHtml(f.location)}" />
+        <div class="sched-mode-toggle" id="schedModeToggle">
+          <div class="sched-mode-option${singleActive}" data-sched-mode="single">📍 單點</div>
+          <div class="sched-mode-option${rangeActive}" data-sched-mode="range">↔ 路線</div>
         </div>
+      </div>
+      <div class="form-group">
+        ${locationFields}
+      </div>
+      <div class="form-group">
         <div class="form-row date-row"><div class="form-label">日期</div>
           <input class="form-input" id="sf-date" type="date" value="${escapeHtml(f.date)}" />
-        </div>
-        <div class="form-row"><div class="form-label">時間</div>
-          <input class="form-input" id="sf-time" type="time" value="${escapeHtml(f.time)}" placeholder="可留空" />
         </div>
         <div class="form-row"><div class="form-label">地圖連結</div>
           <input class="form-input" id="sf-map" placeholder="Google Maps URL（可留空）" value="${escapeHtml(f.mapUrl)}" />
@@ -2319,6 +2452,12 @@
       </div>
     `;
 
+    $('#schedModeToggle').addEventListener('click', e => {
+      const opt = e.target.closest('[data-sched-mode]');
+      if (!opt) return;
+      state.schedForm.mode = opt.dataset.schedMode;
+      renderSchedForm();
+    });
     $('#schedCatGrid').addEventListener('click', e => {
       const cell = e.target.closest('[data-sched-cat]');
       if (!cell) return;
@@ -2330,20 +2469,30 @@
     $('#sf-location').addEventListener('input', e => state.schedForm.location = e.target.value);
     $('#sf-map').addEventListener('input', e => state.schedForm.mapUrl = e.target.value);
     $('#sf-note').addEventListener('input', e => state.schedForm.note = e.target.value);
+
+    const endTimeEl = $('#sf-endTime');
+    if (endTimeEl) endTimeEl.addEventListener('change', e => state.schedForm.endTime = e.target.value);
+    const endLocEl = $('#sf-endLocation');
+    if (endLocEl) endLocEl.addEventListener('input', e => state.schedForm.endLocation = e.target.value);
   }
 
   function saveSchedule(){
     const f = state.schedForm;
     const location = (f.location || '').trim();
+    const endLocation = (f.endLocation || '').trim();
     if (!location) { showToast('請輸入地點'); return; }
+    if (f.mode === 'range' && !endLocation) { showToast('請輸入終點'); return; }
     const data = {
+      mode: f.mode || 'single',
       location,
       date: f.date || '',
       time: f.time || '',
+      endTime: (f.endTime || '').trim(),
       mapUrl: (f.mapUrl || '').trim(),
       category: f.category || '景點',
       note: (f.note || '').trim()
     };
+    if (f.mode === 'range') data.endLocation = endLocation;
 
     const btn = $('#schedSaveBtn');
     btn.disabled = true;
