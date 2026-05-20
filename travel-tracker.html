@@ -946,6 +946,30 @@
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
 
+  /* Generic segmented toggle (ledger sub-view) */
+  .segmented-toggle {
+    display: flex;
+    background: var(--surface-alt);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+  }
+  .segmented-option {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    color: var(--text-muted);
+  }
+  .segmented-option.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
   /* Range route arrow */
   .sched-route-arrow {
     text-align: center;
@@ -1115,23 +1139,21 @@
 
   <div id="ledgerView">
     <div class="section">
-      <h2 class="section-title">收支狀況</h2>
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">收支狀況</h2>
+        <button class="section-toggle" id="settleBtn">💡 結算</button>
+      </div>
       <div class="card" id="balanceList">
         <div class="skeleton skel-row"></div>
         <div class="skeleton skel-row"></div>
       </div>
     </div>
 
-    <div class="section" id="settleSection" style="display:none">
-      <div class="section-title-row">
-        <h2 class="section-title" style="margin:0">結算建議</h2>
-        <button class="section-toggle" id="settleToggle" aria-expanded="true">隱藏</button>
-      </div>
-      <div class="card" id="settleList"></div>
-    </div>
-
     <div class="section">
-      <h2 class="section-title">消費明細</h2>
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">消費明細</h2>
+        <button class="section-toggle" id="personExpenseBtn">📊 每人支出</button>
+      </div>
       <div id="recordList">
         <div class="card"><div class="skeleton skel-row"></div><div class="skeleton skel-row"></div></div>
       </div>
@@ -1168,6 +1190,30 @@
   <button class="fab" id="fab" aria-label="新增">
     <i data-lucide="plus"></i>
   </button>
+</div>
+
+<!-- Summary popup modal -->
+<div class="modal centered" id="summaryOverlay">
+  <div class="modal-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 class="modal-title" style="margin:0" id="summaryTitle"></h2>
+      <button class="icon-btn" id="closeSummary" aria-label="關閉"><i data-lucide="x"></i></button>
+    </div>
+    <div>
+      <div id="summaryPersonExpense" style="display:none">
+        <div class="card" id="popupPersonExpenseList"></div>
+      </div>
+      <div id="summarySettle" style="display:none">
+        <div id="popupSettleSection">
+          <div class="section-title-row" style="margin:0 0 6px">
+            <h2 class="section-title" style="margin:0">結算建議</h2>
+            <button class="section-toggle" id="popupSettleToggle" aria-expanded="true">隱藏</button>
+          </div>
+          <div class="card" id="popupSettleList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Input overlay -->
@@ -1393,6 +1439,7 @@
   function renderAll(){
     if (state.meta) {
       renderBalances();
+      renderPersonExpenses();
       renderRecords();
       renderSettlement();
       renderSchedule();
@@ -1553,6 +1600,68 @@
     }).join('');
   }
 
+  // ---------- Render: per-person expense totals ----------
+  function renderPersonExpenses(containerId){
+    const container = document.getElementById(containerId || 'popupPersonExpenseList');
+    if (!container) return;
+    const members = memberList();
+    if (!members.length) {
+      container.innerHTML = '<div class="empty">尚未新增成員</div>';
+      return;
+    }
+
+    // Sum each member's share from 支出/預付 records, per currency
+    const totals = {};
+    members.forEach(m => totals[m.id] = {});
+
+    Object.values(state.records).forEach(r => {
+      if (!r || (r.type !== '支出' && r.type !== '預付')) return;
+      const cur = r.currency || 'JPY';
+      const shares = r.shares || {};
+      Object.entries(shares).forEach(([id, amt]) => {
+        if (!totals[id]) return;
+        totals[id][cur] = (totals[id][cur] || 0) + (Number(amt) || 0);
+      });
+      // Legacy: without shares, use participants
+      if (!Object.keys(shares).length && r.participants) {
+        const share = (Number(r.amount) || 0) / r.participants.length;
+        r.participants.forEach(id => {
+          if (!totals[id]) return;
+          totals[id][cur] = (totals[id][cur] || 0) + share;
+        });
+      }
+    });
+
+    const display = state.displayCurrency;
+    container.innerHTML = members.map(m => {
+      const perCur = totals[m.id] || {};
+      let html;
+      if (display) {
+        let total = 0, allOk = true;
+        Object.entries(perCur).forEach(([cur, v]) => {
+          if (cur === display) { total += v; return; }
+          const { value, ok } = convert(v, cur, display);
+          if (!ok) allOk = false;
+          total += value;
+        });
+        html = total > 0 ? `${total.toFixed(1)} ${display}${allOk ? '' : ' *'}` : '';
+      } else {
+        const entries = Object.entries(perCur).filter(([, v]) => v > 0.005);
+        html = entries.length
+          ? entries.map(([cur, v]) => `<div class="balance-line">${v.toFixed(1)} ${cur}</div>`).join('')
+          : '';
+      }
+      if (!html) html = '<span style="color:var(--text-muted)">—</span>';
+
+      return `<div class="balance-row">
+        <div class="balance-name">${escapeHtml(m.name)}</div>
+        <div class="balance-right">
+          <div class="balance-amount">${html}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   // ---------- Render: settlement (debt simplification) ----------
   function simplifyDebts(balances){
     // Greedy min-transactions algorithm.
@@ -1578,9 +1687,13 @@
     return txs;
   }
 
-  function renderSettlement(){
-    const section = $('#settleSection');
-    const container = $('#settleList');
+  function renderSettlement(sectionId, listId, toggleId){
+    sectionId = sectionId || 'popupSettleSection';
+    listId = listId || 'popupSettleList';
+    toggleId = toggleId || 'popupSettleToggle';
+    const section = document.getElementById(sectionId);
+    const container = document.getElementById(listId);
+    if (!section || !container) return;
     if (!memberList().length || !Object.keys(state.records).length) {
       section.style.display = 'none';
       return;
@@ -1625,11 +1738,14 @@
       </div>`;
     }).join('');
     container.style.display = state.settleHidden ? 'none' : '';
-    $('#settleToggle').textContent = state.settleHidden ? '顯示' : '隱藏';
-    $('#settleToggle').setAttribute('aria-expanded', state.settleHidden ? 'false' : 'true');
+    const toggle = document.getElementById(toggleId);
+    if (toggle) {
+      toggle.textContent = state.settleHidden ? '顯示' : '隱藏';
+      toggle.setAttribute('aria-expanded', state.settleHidden ? 'false' : 'true');
+    }
   }
 
-  $('#settleToggle').addEventListener('click', () => {
+  document.getElementById('popupSettleToggle').addEventListener('click', () => {
     state.settleHidden = !state.settleHidden;
     renderSettlement();
   });
@@ -2673,6 +2789,31 @@
   }
   $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
 
+  // Summary popup buttons
+  function openSummaryPopup(mode){
+    const personDiv = $('#summaryPersonExpense');
+    const settleDiv = $('#summarySettle');
+    if (mode === 'person') {
+      personDiv.style.display = '';
+      settleDiv.style.display = 'none';
+      $('#summaryTitle').textContent = '每人支出總計';
+      renderPersonExpenses('popupPersonExpenseList');
+    } else {
+      personDiv.style.display = 'none';
+      settleDiv.style.display = '';
+      $('#summaryTitle').textContent = '結算建議';
+      renderSettlement();
+    }
+    $('#summaryOverlay').classList.add('open');
+  }
+  function closeSummaryOverlay(){ $('#summaryOverlay').classList.remove('open'); }
+  $('#personExpenseBtn').addEventListener('click', () => openSummaryPopup('person'));
+  $('#settleBtn').addEventListener('click', () => openSummaryPopup('settle'));
+  $('#closeSummary').addEventListener('click', closeSummaryOverlay);
+  $('#summaryOverlay').addEventListener('click', e => {
+    if (e.target.id === 'summaryOverlay') closeSummaryOverlay();
+  });
+
   $('#schedSort').addEventListener('click', () => {
     state.schedSort = state.schedSort === 'date' ? 'created' : 'date';
     $('#schedSort').textContent = state.schedSort === 'date' ? '時間排序' : '新增順序';
@@ -2870,6 +3011,7 @@
       $('#setupModal').classList.remove('open');
       renderGroupName();
       renderBalances();
+      renderPersonExpenses();
       renderRecords();
       renderSettlement();
       renderSchedule();
@@ -2884,6 +3026,7 @@
     recordsLoaded = true;
     if (state.meta) {
       renderBalances();
+      renderPersonExpenses();
       renderRecords();
       renderSettlement();
       // Ensure rates exist for any new currency introduced by records
