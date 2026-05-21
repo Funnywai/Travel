@@ -898,6 +898,27 @@
   }
   .sched-leg .sched-loc a { color: inherit; }
 
+  .sched-timeline-stacked {
+    display: grid;
+    grid-template-columns: 50px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+  }
+  .sched-timeline-stacked .sched-leg {
+    grid-column: 1;
+  }
+  .sched-loc-center {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sched-loc-center a { color: inherit; }
+
   .sched-note {
     font-size: 12px;
     color: var(--text-muted);
@@ -907,6 +928,7 @@
     padding-left: 22px;
   }
   .sched-row.expanded .sched-leg .sched-loc,
+  .sched-row.expanded .sched-loc-center,
   .sched-row.expanded .sched-note {
     white-space: normal;
   }
@@ -1207,7 +1229,6 @@
         <div id="popupSettleSection">
           <div class="section-title-row" style="margin:0 0 6px">
             <h2 class="section-title" style="margin:0">結算建議</h2>
-            <button class="section-toggle" id="popupSettleToggle" aria-expanded="true">隱藏</button>
           </div>
           <div class="card" id="popupSettleList"></div>
         </div>
@@ -1737,18 +1758,8 @@
         <div class="settle-amount">${tx.amount.toFixed(1)} ${tx.currency}${star}</div>
       </div>`;
     }).join('');
-    container.style.display = state.settleHidden ? 'none' : '';
-    const toggle = document.getElementById(toggleId);
-    if (toggle) {
-      toggle.textContent = state.settleHidden ? '顯示' : '隱藏';
-      toggle.setAttribute('aria-expanded', state.settleHidden ? 'false' : 'true');
-    }
   }
 
-  document.getElementById('popupSettleToggle').addEventListener('click', () => {
-    state.settleHidden = !state.settleHidden;
-    renderSettlement();
-  });
   function renderRecords(){
     const container = $('#recordList');
     const entries = Object.entries(state.records)
@@ -2354,23 +2365,39 @@
 
     const startTime = item.time || '·';
     const startTimeCls = item.time ? '' : ' sched-no-time';
-    const startLegHtml = `<div class="sched-leg">
-      <span class="sched-time${startTimeCls}">${escapeHtml(startTime)}</span>
-      <span class="sched-loc">${startLocHtml}</span>
-    </div>`;
 
-    let endLegHtml = '';
-    if (hasEndTime) {
-      const endLocHtml = item.endMapUrl
-        ? `<a href="${escapeHtml(item.endMapUrl)}" target="_blank" rel="noopener">${escapeHtml(endLoc)}</a>`
-        : escapeHtml(endLoc);
-      endLegHtml = `<div class="sched-leg sched-end">
-        <span class="sched-time">${escapeHtml(item.endTime)}</span>
-        <span class="sched-loc">${endLocHtml}</span>
+    const isStacked = !isRange && item.time && item.endTime;
+
+    let timelineHtml;
+    if (isStacked) {
+      timelineHtml = `<div class="sched-timeline sched-timeline-stacked">
+        <div class="sched-leg">
+          <span class="sched-time">${escapeHtml(item.time)}</span>
+        </div>
+        <div class="sched-loc-center">${startLocHtml}</div>
+        <div class="sched-leg sched-end">
+          <span class="sched-time">${escapeHtml(item.endTime)}</span>
+        </div>
       </div>`;
-    }
+    } else {
+      const startLegHtml = `<div class="sched-leg">
+        <span class="sched-time${startTimeCls}">${escapeHtml(startTime)}</span>
+        <span class="sched-loc">${startLocHtml}</span>
+      </div>`;
 
-    const timelineHtml = `<div class="sched-timeline">${startLegHtml}${endLegHtml}</div>`;
+      let endLegHtml = '';
+      if (hasEndTime) {
+        const endLocHtml = item.endMapUrl
+          ? `<a href="${escapeHtml(item.endMapUrl)}" target="_blank" rel="noopener">${escapeHtml(endLoc)}</a>`
+          : escapeHtml(endLoc);
+        endLegHtml = `<div class="sched-leg sched-end">
+          <span class="sched-time">${escapeHtml(item.endTime)}</span>
+          <span class="sched-loc">${endLocHtml}</span>
+        </div>`;
+      }
+
+      timelineHtml = `<div class="sched-timeline">${startLegHtml}${endLegHtml}</div>`;
+    }
 
     const noteHtml = item.note ? `<div class="sched-note">${escapeHtml(item.note)}</div>` : '';
     return `<div class="sched-row" data-id="${id}">
