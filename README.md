@@ -13,7 +13,7 @@ Track shared trip expenses across multiple currencies, see real-time balances, m
 - **Live currency conversion** — pick a display currency in settings, all balances and totals convert via [exchangerate.fun](https://exchangerate.fun) (no API key)
 - **Settlement suggestions** — greedy min-transactions algorithm shows who owes whom, per currency or merged
 - **Records grouped by date** — daily subtotals + grand total at the top
-- **行程 (Itinerary) view** — share a trip schedule alongside the ledger: date, time, location, map link, category, and notes; grouped by date or sorted by creation
+- **行程 (Itinerary) view** — share a trip schedule alongside the ledger: each stop is either a 單點 (single location with start/end times) or a 路線 (route between two locations); grouped by date or sorted by creation; single stops with both times use a stacked layout that avoids duplicating the location name
 - **Marked (Wishlist) view** — collect places you want to visit: each wish has a title, multiple locations (with optional map links and per-location notes), and a category note
 - **Edit & delete toggle** — `✎` buttons in Marked and 行程 headers show/hide per-item edit/delete controls
 - **Inline edit & delete** — records, schedule items, and wishes can be edited or removed
@@ -38,7 +38,7 @@ cd /path/to/Travel
 python -m http.server 3000
 ```
 
-Open http://localhost:8000
+Open http://localhost:3000
 
 ### Option 2: Node.js
 
@@ -103,15 +103,17 @@ trips/{tripId}/
       updatedAt: timestamp  (only on edit)
   schedule/
     {scheduleId}/
-      title: string
-      date: string  (YYYY-MM-DD, optional)
-      time: string  (HH:MM, optional)
-      location: string  (optional)
-      mapUrl: string    (optional)
-      category: string  (景點/餐飲/交通/住宿/購物/活動/出發·回程/其他)
-      note: string      (optional)
+      mode: string           ('single' | 'range')
+      date: string           (YYYY-MM-DD)
+      time: string           (HH:MM, start time)
+      endTime: string        (HH:MM, end time)
+      location: string       (start location)
+      endLocation: string    (end location, range only)
+      mapUrl: string         (start map URL)
+      endMapUrl: string      (end map URL)
+      note: string
       createdAt: timestamp
-      updatedAt: timestamp  (only on edit)
+      updatedAt: timestamp   (only on edit)
    wishlist/
      {wishId}/
        title: string
@@ -143,5 +145,4 @@ When **顯示貨幣 = 原始貨幣（不轉換）**, each currency is settled in
 - Noto Serif TC + LXGW WenKai Mono TC + DM Sans via Google Fonts
 - exchangerate.fun for currency rates (no API key)
 - `.opencode/skills/frontend-design/SKILL.md` — design skill for future UI work
-git reset --hard <ver>
-git push --force origin dev
+
