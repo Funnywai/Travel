@@ -1102,6 +1102,8 @@
   .wish-actions button { font-size: 13px; padding: 4px 0; }
   .wish-actions .edit { color: var(--accent); font-weight: 600; }
   .wish-actions .delete { color: var(--error); }
+  .wish-actions .pin { color: var(--text-muted); font-weight: 500; }
+  .wish-row.pinned { background: linear-gradient(90deg, rgba(200,132,46,0.06) 0%, transparent 100%); }
   .toggle-actions-btn {
     font-size: 14px;
     padding: 4px 8px;
@@ -2302,7 +2304,12 @@
     }
 
     if (state.schedSort === 'created') {
-      entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    entries.sort((a, b) => {
+      if ((a[1].pinned && b[1].pinned) || (!a[1].pinned && !b[1].pinned)) {
+        return (b[1].createdAt || 0) - (a[1].createdAt || 0);
+      }
+      return a[1].pinned ? -1 : 1;
+    });
       const rows = entries.map(([id, item]) => schedRowHtml(id, item)).join('');
       container.innerHTML = `<div class="card ${state.showSchedActions ? '' : 'sched-actions-hidden'}">${rows}</div>`;
     } else {
@@ -2618,7 +2625,12 @@
       container.innerHTML = '<div class="card"><div class="empty">還沒有Marked種類，點擊新增加入第一個！</div></div>';
       return;
     }
-    entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    entries.sort((a, b) => {
+      if ((a[1].pinned && b[1].pinned) || (!a[1].pinned && !b[1].pinned)) {
+        return (b[1].createdAt || 0) - (a[1].createdAt || 0);
+      }
+      return a[1].pinned ? -1 : 1;
+    });
     const rows = entries.map(([id, item]) => wishRowHtml(id, item)).join('');
     container.innerHTML = `<div class="card ${state.showWishActions ? '' : 'wish-actions-hidden'}">${rows}</div>`;
 
@@ -2630,6 +2642,14 @@
         e.stopPropagation();
         const id = delBtn.dataset.wishDel;
         if (confirm('確定刪除此Marked？')) tripRef.child('wishlist/' + id).remove();
+        return;
+      }
+      const pinBtn = e.target.closest('[data-wish-pin]');
+      if (pinBtn) {
+        e.stopPropagation();
+        const id = pinBtn.dataset.wishPin;
+        const item = state.wishlist[id];
+        if (item) tripRef.child('wishlist/' + id + '/pinned').set(!item.pinned);
         return;
       }
       if (e.target.closest('a')) return; // Don't toggle when tapping map link
@@ -2656,13 +2676,14 @@
         }).join('')
       : '';
     const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
-    return `<div class="wish-row" data-id="${id}">
+    return `<div class="wish-row${item.pinned ? ' pinned' : ''}" data-id="${id}">
       <div class="wish-info">
         <div class="wish-title">${escapeHtml(title)}${locSummary ? `<span class=\"wish-count\">${locSummary}</span>` : ''}</div>
         ${locHtml ? `<div class=\"wish-locs\">${locHtml}</div>` : ''}
         ${noteHtml}
       </div>
       <div class="wish-actions">
+        <button class="pin" data-wish-pin="${id}">${item.pinned ? '📌 已置頂' : '📌 置頂'}</button>
         <button class="edit" data-wish-edit="${id}">✎ 編輯</button>
         <button class="delete" data-wish-del="${id}">🗑 刪除</button>
       </div>
