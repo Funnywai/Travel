@@ -1585,7 +1585,7 @@
           if (!ok) allOk = false;
           total += value;
         });
-        if (Math.abs(total) < 0.005) {
+        if (Math.abs(total) < 0.05) {
           status = '收支平衡'; cls = 'status-neutral';
           amountHtml = '';
         } else if (total < 0) {
@@ -1597,7 +1597,7 @@
         }
       } else {
         // No display currency — show per-currency breakdown (no fake summing).
-        const entries = Object.entries(perCur).filter(([, v]) => Math.abs(v) >= 0.005);
+        const entries = Object.entries(perCur).filter(([, v]) => Math.abs(v) >= 0.05);
         if (!entries.length) {
           status = '收支平衡'; cls = 'status-neutral';
           amountHtml = '';
