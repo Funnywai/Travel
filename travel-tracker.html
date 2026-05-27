@@ -1081,6 +1081,11 @@
     white-space: nowrap;
     margin-left: auto;
   }
+  .wish-loc-hours {
+    font-size: 12px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
   .wish-loc a { color: var(--accent); text-decoration: none; }
   .wish-note {
     font-size: 12px;
@@ -1122,6 +1127,10 @@
     padding: 10px;
     background: var(--surface);
     display: grid;
+    gap: 8px;
+  }
+  .wish-loc-row-split {
+    display: flex;
     gap: 8px;
   }
   .wish-input {
@@ -2608,7 +2617,8 @@
       locations = item.locations.map(loc => ({
         name: loc && loc.name ? String(loc.name) : '',
         mapUrl: loc && loc.mapUrl ? String(loc.mapUrl) : '',
-        note: loc && loc.note ? String(loc.note) : ''
+        note: loc && loc.note ? String(loc.note) : '',
+        hours: loc && loc.hours ? String(loc.hours) : ''
       })).filter(loc => loc.name || loc.mapUrl);
     }
     if (!hasLocationsField && !locations.length) {
@@ -2672,7 +2682,8 @@
             ? `<a href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">${nameHtml}</a>`
             : nameHtml;
           const locNoteHtml = loc.note ? `<span class="wish-loc-note">${escapeHtml(loc.note)}</span>` : '';
-          return `<div class="wish-loc">${linkHtml}${locNoteHtml}</div>`;
+          const hoursHtml = loc.hours ? `<span class="wish-loc-hours">${escapeHtml(loc.hours)}</span>` : '';
+          return `<div class="wish-loc">${linkHtml}${hoursHtml}${locNoteHtml}</div>`;
         }).join('')
       : '';
     const noteHtml = normalized.note ? `<div class="wish-note">${escapeHtml(normalized.note)}</div>` : '';
@@ -2738,7 +2749,10 @@
           <div class="wish-form-list" id="wishLocations">
             ${locations.map((loc, i) => `
               <div class="wish-loc-row">
-                <input class="wish-input" data-loc-name="${i}" placeholder="地點名稱" value="${escapeHtml(loc.name || '')}" />
+                <div class="wish-loc-row-split">
+                  <input class="wish-input" data-loc-name="${i}" placeholder="地點名稱" value="${escapeHtml(loc.name || '')}" style="flex:1" />
+                  <input class="wish-input" data-loc-hours="${i}" placeholder="營業時間（可留空）" value="${escapeHtml(loc.hours || '')}" style="max-width:160px" />
+                </div>
                 <input class="wish-input" data-loc-map="${i}" placeholder="地圖連結（可留空）" value="${escapeHtml(loc.mapUrl || '')}" />
                 <input class="wish-input" data-loc-note="${i}" placeholder="備註（可留空）" value="${escapeHtml(loc.note || '')}" />
                 <button class="wish-remove" type="button" data-loc-remove="${i}">移除</button>
@@ -2762,6 +2776,10 @@
       const idx = Number(inp.dataset.locNote);
       inp.addEventListener('input', e => { state.wishForm.locations[idx].note = e.target.value; });
     });
+    $$('#wishLocations [data-loc-hours]').forEach(inp => {
+      const idx = Number(inp.dataset.locHours);
+      inp.addEventListener('input', e => { state.wishForm.locations[idx].hours = e.target.value; });
+    });
     $$('#wishLocations [data-loc-remove]').forEach(btn => {
       const idx = Number(btn.dataset.locRemove);
       btn.addEventListener('click', () => {
@@ -2770,7 +2788,7 @@
       });
     });
     $('#wishAddLocation').addEventListener('click', () => {
-      state.wishForm.locations.push({ name: '', mapUrl: '', note: '' });
+      state.wishForm.locations.push({ name: '', mapUrl: '', note: '', hours: '' });
       renderWishForm();
     });
   }
@@ -2782,7 +2800,8 @@
     const rawLocations = (f.locations || []).map(loc => ({
       name: (loc && loc.name ? String(loc.name) : '').trim(),
       mapUrl: (loc && loc.mapUrl ? String(loc.mapUrl) : '').trim(),
-      note: (loc && loc.note ? String(loc.note) : '').trim()
+      note: (loc && loc.note ? String(loc.note) : '').trim(),
+      hours: (loc && loc.hours ? String(loc.hours) : '').trim()
     }));
     if (rawLocations.some(loc => loc.mapUrl && !loc.name)) {
       showToast('請填寫地點名稱');
