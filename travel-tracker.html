@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=LXGW+WenKai+Mono+TC:wght@400;700&family=Noto+Serif+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDUYiCm_atHvgYPFZqf-iWzUv0kDK4W0dc&v=weekly&loading=async"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&v=weekly&loading=async"></script>
 <style>
   :root {
     --primary: #1a1a2e;
@@ -1447,7 +1447,7 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const GOOGLE_GEOCODE_API_KEY = 'AIzaSyByuK9_sqd2tJsWSiCNP3SYP8Tr5y1hAXk';
+  const GOOGLE_GEOCODE_API_KEY = '__GOOGLE_GEOCODE_API_KEY__';
 
   // ---------- Trip id from URL hash ----------
   function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
