@@ -1427,6 +1427,8 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  const GOOGLE_MAPS_API_KEY = 'AIzaSyDkVg0WnDRk-KBq7k4bJYYt3rTCWsuPgKM';
+
   // ---------- Trip id from URL hash ----------
   function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
   let tripId = location.hash.replace('#','').trim();
@@ -1446,7 +1448,8 @@
     schedSort: 'date',     // 'date' | 'created'
     showWishActions: false,
     showSchedActions: false,
-    _coordsCache: {},      // { url: { lat, lng } } — in-memory cache for resolved coordinates
+    coords: {},            // { coordsKey: { key, name, lat, lng } }
+    _geocodeCache: {},     // in-memory dedup for geocodeByName
     _mapInstance: null,    // Leaflet map instance
     schedForm: {           // edit form state for schedule items
       editingId: null,
@@ -1481,9 +1484,6 @@
       transferTo: ''
     }
   };
-
-  // Load persisted coordinate cache
-  state._coordsCache = loadCoordsCache();
 
   const CURRENCIES = ['JPY','HKD','TWD','KRW'];
 
@@ -1605,103 +1605,21 @@
     return m ? m.name : '?';
   }
 
-  // ---------- Map: coordinate parsing & resolution ----------
-  function parseCoordsFromUrl(url) {
-    if (!url) return null;
-    const m1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (m1) return { lat: parseFloat(m1[1]), lng: parseFloat(m1[2]) };
-    const m2 = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (m2) return { lat: parseFloat(m2[1]), lng: parseFloat(m2[2]) };
-    const m3d = url.match(/!3d(-?\d+\.\d+)/);
-    const m4d = url.match(/!4d(-?\d+\.\d+)/);
-    if (m3d && m4d) return { lat: parseFloat(m3d[1]), lng: parseFloat(m4d[1]) };
-    return null;
-  }
-
-  function isShortUrl(url) {
-    if (!url) return false;
-    return /maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.(com|co\.\w+)\?q=/.test(url);
-  }
-
-  function loadCoordsCache() {
-    try {
-      const raw = localStorage.getItem('travel_coords_cache');
-      return raw ? JSON.parse(raw) : {};
-    } catch(e) { return {}; }
-  }
-  function saveCoordsCache(cache) {
-    try { localStorage.setItem('travel_coords_cache', JSON.stringify(cache)); } catch(e) {}
-  }
-
-  async function resolveShortUrl(shortUrl) {
-    try {
-      const opts = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-        ? { signal: AbortSignal.timeout(10000) } : {};
-      const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(shortUrl);
-      const resp = await fetch(proxyUrl, opts);
-      const html = await resp.text();
-
-      const latMeta = html.match(/<meta[^>]+property="place:location:latitude"[^>]+content="([^"]+)"/i);
-      const lngMeta = html.match(/<meta[^>]+property="place:location:longitude"[^>]+content="([^"]+)"/i);
-      if (latMeta && lngMeta) {
-        return { lat: parseFloat(latMeta[1]), lng: parseFloat(lngMeta[1]) };
-      }
-
-      const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i);
-      if (canonical) {
-        const coords = parseCoordsFromUrl(canonical[1]);
-        if (coords) return coords;
-      }
-
-      const atMatch = html.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
-
-      const d3Match = html.match(/!3d(-?\d+\.\d+)/);
-      const d4Match = html.match(/!4d(-?\d+\.\d+)/);
-      if (d3Match && d4Match) return { lat: parseFloat(d3Match[1]), lng: parseFloat(d4Match[2]) };
-
-      return null;
-    } catch(e) { return null; }
-  }
-
-  async function getCoordsForUrl(mapUrl) {
-    if (!mapUrl) return null;
-    const key = mapUrl.trim();
-    if (state._coordsCache[key]) return state._coordsCache[key];
-
-    const direct = parseCoordsFromUrl(key);
-    if (direct) {
-      state._coordsCache[key] = direct;
-      saveCoordsCache(state._coordsCache);
-      return direct;
-    }
-
-    if (isShortUrl(key)) {
-      const resolved = await resolveShortUrl(key);
-      if (resolved) {
-        state._coordsCache[key] = resolved;
-        saveCoordsCache(state._coordsCache);
-        return resolved;
-      }
-    }
-
-    return null;
-  }
-
+  // ---------- Map: geocoding ----------
   async function geocodeByName(name) {
     if (!name || name.length < 2) return null;
     const key = 'geo:' + name.trim();
-    if (state._coordsCache[key]) return state._coordsCache[key];
+    if (state._geocodeCache[key]) return state._geocodeCache[key];
     try {
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(name.trim()) + '&limit=1';
+      const url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + encodeURIComponent(name.trim()) + '&key=' + GOOGLE_MAPS_API_KEY;
       const opts = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
         ? { signal: AbortSignal.timeout(5000) } : {};
       const resp = await fetch(url, opts);
       const data = await resp.json();
-      if (data && data.length && data[0].lat && data[0].lon) {
-        const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-        state._coordsCache[key] = coords;
-        saveCoordsCache(state._coordsCache);
+      if (data && data.status === 'OK' && data.results.length) {
+        const loc = data.results[0].geometry.location;
+        const coords = { lat: loc.lat, lng: loc.lng };
+        state._geocodeCache[key] = coords;
         return coords;
       }
       return null;
@@ -1715,13 +1633,15 @@
       if (item.location) {
         locs.push({
           id: id, name: item.location, mapUrl: item.mapUrl,
-          source: 'schedule', sourceName: '行程', note: item.note
+          source: 'schedule', sourceName: '行程', note: item.note,
+          coordsKey: 'sched_' + id + '_start'
         });
       }
       if (item.endLocation && (item.mode === 'range' || item.endLocation)) {
         locs.push({
           id: id + '_end', name: item.endLocation, mapUrl: item.endMapUrl,
-          source: 'schedule', sourceName: '行程（終點）', note: item.note
+          source: 'schedule', sourceName: '行程（終點）', note: item.note,
+          coordsKey: 'sched_' + id + '_end'
         });
       }
     });
@@ -1732,7 +1652,8 @@
         if (loc.name) {
           locs.push({
             id: id + '_w' + idx, name: loc.name, mapUrl: loc.mapUrl,
-            source: 'wishlist', sourceName: 'Marked', note: loc.note || normalized.title
+            source: 'wishlist', sourceName: 'Marked', note: loc.note || normalized.title,
+            coordsKey: 'wish_' + id + '_' + idx
           });
         }
       });
@@ -2874,6 +2795,7 @@
 
     setTimeout(() => {
       if (allCoords.length) {
+        allCoords.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
         const bounds = L.latLngBounds(allCoords);
         if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
       }
@@ -2881,8 +2803,22 @@
     }, 600);
 
     async function resolveAndPlace(loc, map, allCoords) {
-      let coords = await getCoordsForUrl(loc.mapUrl);
-      if (!coords && loc.name) coords = await geocodeByName(loc.name);
+      let coords = null;
+
+      if (state.coords[loc.coordsKey]) {
+        coords = state.coords[loc.coordsKey];
+      } else {
+        if (loc.name) coords = await geocodeByName(loc.name);
+        if (coords) {
+          tripRef.child('coords').push({
+            key: loc.coordsKey,
+            name: loc.name,
+            lat: coords.lat,
+            lng: coords.lng
+          });
+        }
+      }
+
       if (!coords) return;
 
       allCoords.push([coords.lat, coords.lng]);
@@ -3421,6 +3357,15 @@
   tripRef.child('wishlist').on('value', snap => {
     state.wishlist = snap.val() || {};
     if (state.meta) renderWishList();
+    if (state.currentView === 'map') renderMap();
+  });
+
+  tripRef.child('coords').on('value', snap => {
+    const raw = snap.val() || {};
+    state.coords = {};
+    Object.values(raw).forEach(entry => {
+      if (entry && entry.key) state.coords[entry.key] = { lat: entry.lat, lng: entry.lng };
+    });
     if (state.currentView === 'map') renderMap();
   });
 
