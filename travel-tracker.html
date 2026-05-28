@@ -856,6 +856,27 @@
   }
   .map-legend-dot.sched { background: #c8842e; }
   .map-legend-dot.wish { background: #1a1a2e; }
+  .map-geolocate-btn {
+    position: absolute;
+    bottom: 108px;
+    right: 10px;
+    z-index: 1000;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.2s, color 0.2s;
+    color: var(--text-muted);
+  }
+  .map-geolocate-btn:hover { background: var(--hover); color: var(--text); }
+  .map-geolocate-btn.tracking { background: #4285f4; color: #fff; border-color: #4285f4; }
   .map-loading {
     display: flex;
     align-items: center;
@@ -1242,10 +1263,10 @@
   </div>
 
   <div class="view-switcher">
-    <button class="view-tab active" data-view="ledger">💰 記賬</button>
-    <button class="view-tab" data-view="schedule">📅 行程</button>
-    <button class="view-tab" data-view="wishlist">⭐ Marked</button>
-    <button class="view-tab" data-view="map">🗺️ 地圖</button>
+    <button class="view-tab active" data-view="ledger">記賬</button>
+    <button class="view-tab" data-view="schedule">行程</button>
+    <button class="view-tab" data-view="wishlist">Marked</button>
+    <button class="view-tab" data-view="map">地圖</button>
   </div>
 
   <div id="ledgerView">
@@ -2368,7 +2389,7 @@
             Object.keys(locked).forEach(k => delete locked[k]);
           } else {
             all.forEach(m => { if (!map.hasOwnProperty(m.id)) map[m.id] = 0; });
-          }
+  }
         } else if (action === 'reset') {
           Object.keys(locked).forEach(k => delete locked[k]);
         }
@@ -2767,7 +2788,10 @@
       return;
     }
 
-    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div>';
+    var wasTracking = !!state._watchId;
+    if (wasTracking) stopGeolocation();
+
+    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
 
     const map = new google.maps.Map(document.getElementById('mapGoogle'), {
       center: { lat: 35, lng: 135 },
@@ -2795,6 +2819,11 @@
     setTimeout(function() {
       if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
     }, 1500);
+
+    var geoBtn = document.getElementById('geolocateBtn');
+    if (geoBtn) geoBtn.addEventListener('click', function() { toggleGeolocation(map); });
+
+    if (wasTracking) startGeolocation(map);
   }
 
   function pinSvg(color) {
@@ -2857,7 +2886,82 @@
     marker.addListener('mouseover', function() { infoWindow.open(map, marker); });
   }
 
-  // ---------- Wishlist (Marked清單) ----------
+  // ---------- User geolocation ----------
+  function toggleGeolocation(map) {
+    if (state._watchId) {
+      stopGeolocation();
+    } else {
+      startGeolocation(map);
+    }
+  }
+
+  function startGeolocation(map) {
+    if (!navigator.geolocation) {
+      showToast('此裝置不支援定位功能');
+      return;
+    }
+    var btn = document.getElementById('geolocateBtn');
+    if (btn) btn.classList.add('tracking');
+
+    function onPosition(pos) {
+      var latlng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+
+      if (!state._accuracyCircle) {
+        state._accuracyCircle = new google.maps.Circle({
+          map: map, center: latlng, radius: pos.coords.accuracy,
+          fillColor: '#4285f4', fillOpacity: 0.15,
+          strokeColor: '#4285f4', strokeOpacity: 0.4, strokeWeight: 1
+        });
+      } else {
+        state._accuracyCircle.setCenter(latlng);
+        state._accuracyCircle.setRadius(pos.coords.accuracy);
+      }
+
+      if (!state._userMarker) {
+        state._userMarker = new google.maps.Marker({
+          position: latlng, map: map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10, fillColor: '#4285f4', fillOpacity: 1,
+            strokeColor: '#fff', strokeWeight: 3
+          },
+          zIndex: 2000, title: '我的位置'
+        });
+        map.setCenter(latlng);
+        if (map.getZoom() < 14) map.setZoom(14);
+      } else {
+        state._userMarker.setPosition(latlng);
+      }
+    }
+
+    function onError(err) {
+      showToast('定位失敗：' + (err.message || '權限未允許'));
+      stopGeolocation();
+    }
+
+    navigator.geolocation.getCurrentPosition(onPosition, onError,
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+
+    state._watchId = navigator.geolocation.watchPosition(onPosition, onError,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+  }
+
+  function stopGeolocation() {
+    if (state._watchId != null) {
+      navigator.geolocation.clearWatch(state._watchId);
+      state._watchId = null;
+    }
+    if (state._userMarker) {
+      state._userMarker.setMap(null);
+      state._userMarker = null;
+    }
+    if (state._accuracyCircle) {
+      state._accuracyCircle.setMap(null);
+      state._accuracyCircle = null;
+    }
+    var btn = document.getElementById('geolocateBtn');
+    if (btn) btn.classList.remove('tracking');
+  }
   function normalizeWishItem(item){
     const title = item && item.title ? String(item.title) : '';
     const note = item && item.note ? String(item.note) : '';
@@ -3111,6 +3215,7 @@
     } else {
       $('#fab').style.display = '';
       document.body.style.overflow = '';
+      stopGeolocation();
     }
     if (v === 'map') { renderMap(); }
   }
