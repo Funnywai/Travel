@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=LXGW+WenKai+Mono+TC:wght@400;700&family=Noto+Serif+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB5sEkWjvL0SU12bCM2rb409cOr6bbo9KA&v=weekly" async></script>
 <style>
   :root {
     --primary: #1a1a2e;
@@ -820,7 +820,7 @@
     height: calc(100vh - 147px);
     min-height: 400px;
   }
-  .map-view .leaflet-container {
+  .map-view > div:first-child {
     width: 100%;
     height: 100%;
     border-radius: var(--radius);
@@ -1415,7 +1415,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
@@ -1427,8 +1426,8 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const GOOGLE_MAPS_API_KEY = '__GOOGLE_MAPS_API_KEY__';
-  const GOOGLE_GEOCODE_API_KEY = '__GOOGLE_GEOCODE_API_KEY__';
+  const GOOGLE_MAPS_API_KEY = 'AIzaSyB5sEkWjvL0SU12bCM2rb409cOr6bbo9KA';
+  const GOOGLE_GEOCODE_API_KEY = 'AIzaSyDkVg0WnDRk-KBq7k4bJYYt3rTCWsuPgKM';
 
   // ---------- Trip id from URL hash ----------
   function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
@@ -1451,7 +1450,7 @@
     showSchedActions: false,
     coords: {},            // { coordsKey: { key, name, lat, lng } }
     _geocodeCache: {},     // in-memory dedup for geocodeByName
-    _mapInstance: null,    // Leaflet map instance
+    _mapInstance: null,    // Google Maps instance
     schedForm: {           // edit form state for schedule items
       editingId: null,
       mode: 'single',       // 'single' | 'range'
@@ -2759,6 +2758,8 @@
 
   // ---------- Map rendering ----------
   function renderMap(){
+    if (typeof google === 'undefined' || !google.maps || !google.maps.Map) { setTimeout(renderMap, 300); return; }
+
     const container = $('#mapContainer');
     const locs = collectMapLocations();
 
@@ -2767,87 +2768,94 @@
       return;
     }
 
-    if (state._mapInstance) {
-      state._mapInstance.remove();
-      state._mapInstance = null;
-    }
+    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div>';
 
-    container.innerHTML = '<div id="mapLeaflet" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div>';
-
-    const map = L.map('mapLeaflet', {
-      attributionControl: false,
+    const map = new google.maps.Map(document.getElementById('mapGoogle'), {
+      center: { lat: 35, lng: 135 },
+      zoom: 5,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
       zoomControl: true,
-      zoomControlOptions: { position: 'topright' }
-    }).setView([35, 135], 5);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-    L.control.attribution({ prefix: false, position: 'bottomright' }).addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>').addTo(map);
+      zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP }
+    });
 
     state._mapInstance = map;
 
     const legend = $('#mapLegend');
-    legend.innerHTML = '<div class="map-legend-item"><span class="map-legend-dot sched"></span> 行程</div><div class="map-legend-item"><span class="map-legend-dot wish"></span> Marked</div>';
+    var schedSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#c8842e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
+    var wishSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#1a1a2e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
+    legend.innerHTML = '<div class="map-legend-item">' + schedSvg + ' 行程</div><div class="map-legend-item">' + wishSvg + ' Marked</div>';
 
-    const allCoords = [];
+    const bounds = new google.maps.LatLngBounds();
 
-    locs.forEach(loc => {
-      resolveAndPlace(loc, map, allCoords);
+    locs.forEach(function(loc) {
+      resolveAndPlace(loc, map, bounds);
     });
 
-    setTimeout(() => {
-      if (allCoords.length) {
-        allCoords.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-        const bounds = L.latLngBounds(allCoords);
-        if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    setTimeout(function() {
+      if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
+    }, 1500);
+  }
+
+  function pinSvg(color) {
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="36" viewBox="0 0 26 36">' +
+      '<path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="' + color + '"/>' +
+      '<circle cx="13" cy="13" r="5" fill="white"/>' +
+      '</svg>'
+    );
+  }
+
+  async function resolveAndPlace(loc, map, bounds) {
+    var coords = null;
+
+    if (state.coords[loc.coordsKey]) {
+      coords = state.coords[loc.coordsKey];
+    } else {
+      if (loc.name) coords = await geocodeByName(loc.name);
+      if (coords) {
+        tripRef.child('coords').push({
+          key: loc.coordsKey,
+          name: loc.name,
+          lat: coords.lat,
+          lng: coords.lng
+        });
       }
-      map.invalidateSize();
-    }, 600);
-
-    async function resolveAndPlace(loc, map, allCoords) {
-      let coords = null;
-
-      if (state.coords[loc.coordsKey]) {
-        coords = state.coords[loc.coordsKey];
-      } else {
-        if (loc.name) coords = await geocodeByName(loc.name);
-        if (coords) {
-          tripRef.child('coords').push({
-            key: loc.coordsKey,
-            name: loc.name,
-            lat: coords.lat,
-            lng: coords.lng
-          });
-        }
-      }
-
-      if (!coords) return;
-
-      allCoords.push([coords.lat, coords.lng]);
-
-      const color = loc.source === 'schedule' ? '#c8842e' : '#1a1a2e';
-      const marker = L.circleMarker([coords.lat, coords.lng], {
-        radius: 7,
-        fillColor: color,
-        color: '#fff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.85
-      }).addTo(map);
-
-      const linkHtml = loc.mapUrl
-        ? `<a class="map-popup-link" href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">在 Google Maps 開啟 →</a>`
-        : '';
-      const noteHtml = loc.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escapeHtml(loc.note)}</div>` : '';
-
-      marker.bindPopup(`
-        <div class="map-popup-name">${escapeHtml(loc.name)}</div>
-        <div class="map-popup-source">${escapeHtml(loc.sourceName)}</div>
-        ${noteHtml}
-        ${linkHtml}
-      `);
-
-      marker.on('mouseover', function() { this.openPopup(); });
     }
+
+    if (!coords) return;
+
+    var position = new google.maps.LatLng(coords.lat, coords.lng);
+    bounds.extend(position);
+
+    var color = loc.source === 'schedule' ? '#c8842e' : '#1a1a2e';
+    var marker = new google.maps.Marker({
+      position: position,
+      map: map,
+      icon: {
+        url: pinSvg(color),
+        scaledSize: new google.maps.Size(26, 36),
+        anchor: new google.maps.Point(13, 36)
+      },
+      title: loc.name
+    });
+
+    var linkHtml = loc.mapUrl
+      ? '<a class="map-popup-link" href="' + escapeHtml(loc.mapUrl) + '" target="_blank" rel="noopener">在 Google Maps 開啟 →</a>'
+      : '';
+    var noteHtml = loc.note ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">' + escapeHtml(loc.note) + '</div>' : '';
+
+    var infoWindow = new google.maps.InfoWindow({
+      content:
+        '<div class="map-popup-name">' + escapeHtml(loc.name) + '</div>' +
+        '<div class="map-popup-source">' + escapeHtml(loc.sourceName) + '</div>' +
+        noteHtml +
+        linkHtml
+    });
+
+    marker.addListener('click', function() { infoWindow.open(map, marker); });
+    marker.addListener('mouseover', function() { infoWindow.open(map, marker); });
   }
 
   // ---------- Wishlist (Marked清單) ----------
@@ -3098,6 +3106,13 @@
         el.classList.remove('view-enter');
       }
     });
+    if (v === 'map') {
+      $('#fab').style.display = 'none';
+      document.body.style.overflow = 'hidden';
+    } else {
+      $('#fab').style.display = '';
+      document.body.style.overflow = '';
+    }
     if (v === 'map') { renderMap(); }
   }
   $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
@@ -3367,7 +3382,6 @@
     Object.values(raw).forEach(entry => {
       if (entry && entry.key) state.coords[entry.key] = { lat: entry.lat, lng: entry.lng };
     });
-    if (state.currentView === 'map') renderMap();
   });
 
   // Initial icons
