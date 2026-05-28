@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=LXGW+WenKai+Mono+TC:wght@400;700&family=Noto+Serif+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
   :root {
@@ -812,6 +813,75 @@
     transform: scale(1.02);
   }
 
+  /* Map */
+  .map-view {
+    position: relative;
+    padding: 0;
+    height: calc(100vh - 147px);
+    min-height: 400px;
+  }
+  .map-view .leaflet-container {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .map-legend {
+    position: absolute;
+    bottom: 18px;
+    left: 18px;
+    z-index: 1000;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .map-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .map-legend-dot.sched { background: #c8842e; }
+  .map-legend-dot.wish { background: #1a1a2e; }
+  .map-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .map-popup-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .map-popup-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .map-popup-link {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
   /* Schedule */
   .sched-day { margin-bottom: 14px; }
   .sched-day-header {
@@ -1175,6 +1245,7 @@
     <button class="view-tab active" data-view="ledger">💰 記賬</button>
     <button class="view-tab" data-view="schedule">📅 行程</button>
     <button class="view-tab" data-view="wishlist">⭐ Marked</button>
+    <button class="view-tab" data-view="map">🗺️ 地圖</button>
   </div>
 
   <div id="ledgerView">
@@ -1223,6 +1294,14 @@
       </div>
       <div id="wishList">
         <div class="card"><div class="skeleton skel-row"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mapView" style="display:none">
+    <div class="section">
+      <div class="map-view" id="mapContainer">
+        <div class="map-loading">正在載入地圖...</div>
       </div>
     </div>
   </div>
@@ -1336,6 +1415,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
@@ -1362,10 +1442,12 @@
     records: {},       // { id: record }
     schedule: {},      // { id: scheduleItem }
     wishlist: {},      // { id: wishItem }
-    currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist'
+    currentView: 'ledger', // 'ledger' | 'schedule' | 'wishlist' | 'map'
     schedSort: 'date',     // 'date' | 'created'
     showWishActions: false,
     showSchedActions: false,
+    _coordsCache: {},      // { url: { lat, lng } } — in-memory cache for resolved coordinates
+    _mapInstance: null,    // Leaflet map instance
     schedForm: {           // edit form state for schedule items
       editingId: null,
       mode: 'single',       // 'single' | 'range'
@@ -1399,6 +1481,9 @@
       transferTo: ''
     }
   };
+
+  // Load persisted coordinate cache
+  state._coordsCache = loadCoordsCache();
 
   const CURRENCIES = ['JPY','HKD','TWD','KRW'];
 
@@ -1484,6 +1569,7 @@
       renderSchedule();
       renderWishList();
     }
+    if (state.currentView === 'map') renderMap();
   }
 
   // ---------- Helpers ----------
@@ -1517,6 +1603,141 @@
   function memberName(id){
     const m = state.meta && state.meta.members && state.meta.members[id];
     return m ? m.name : '?';
+  }
+
+  // ---------- Map: coordinate parsing & resolution ----------
+  function parseCoordsFromUrl(url) {
+    if (!url) return null;
+    const m1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (m1) return { lat: parseFloat(m1[1]), lng: parseFloat(m1[2]) };
+    const m2 = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (m2) return { lat: parseFloat(m2[1]), lng: parseFloat(m2[2]) };
+    const m3d = url.match(/!3d(-?\d+\.\d+)/);
+    const m4d = url.match(/!4d(-?\d+\.\d+)/);
+    if (m3d && m4d) return { lat: parseFloat(m3d[1]), lng: parseFloat(m4d[1]) };
+    return null;
+  }
+
+  function isShortUrl(url) {
+    if (!url) return false;
+    return /maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.(com|co\.\w+)\?q=/.test(url);
+  }
+
+  function loadCoordsCache() {
+    try {
+      const raw = localStorage.getItem('travel_coords_cache');
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+  function saveCoordsCache(cache) {
+    try { localStorage.setItem('travel_coords_cache', JSON.stringify(cache)); } catch(e) {}
+  }
+
+  async function resolveShortUrl(shortUrl) {
+    try {
+      const opts = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? { signal: AbortSignal.timeout(10000) } : {};
+      const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(shortUrl);
+      const resp = await fetch(proxyUrl, opts);
+      const html = await resp.text();
+
+      const latMeta = html.match(/<meta[^>]+property="place:location:latitude"[^>]+content="([^"]+)"/i);
+      const lngMeta = html.match(/<meta[^>]+property="place:location:longitude"[^>]+content="([^"]+)"/i);
+      if (latMeta && lngMeta) {
+        return { lat: parseFloat(latMeta[1]), lng: parseFloat(lngMeta[1]) };
+      }
+
+      const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i);
+      if (canonical) {
+        const coords = parseCoordsFromUrl(canonical[1]);
+        if (coords) return coords;
+      }
+
+      const atMatch = html.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+
+      const d3Match = html.match(/!3d(-?\d+\.\d+)/);
+      const d4Match = html.match(/!4d(-?\d+\.\d+)/);
+      if (d3Match && d4Match) return { lat: parseFloat(d3Match[1]), lng: parseFloat(d4Match[2]) };
+
+      return null;
+    } catch(e) { return null; }
+  }
+
+  async function getCoordsForUrl(mapUrl) {
+    if (!mapUrl) return null;
+    const key = mapUrl.trim();
+    if (state._coordsCache[key]) return state._coordsCache[key];
+
+    const direct = parseCoordsFromUrl(key);
+    if (direct) {
+      state._coordsCache[key] = direct;
+      saveCoordsCache(state._coordsCache);
+      return direct;
+    }
+
+    if (isShortUrl(key)) {
+      const resolved = await resolveShortUrl(key);
+      if (resolved) {
+        state._coordsCache[key] = resolved;
+        saveCoordsCache(state._coordsCache);
+        return resolved;
+      }
+    }
+
+    return null;
+  }
+
+  async function geocodeByName(name) {
+    if (!name || name.length < 2) return null;
+    const key = 'geo:' + name.trim();
+    if (state._coordsCache[key]) return state._coordsCache[key];
+    try {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(name.trim()) + '&limit=1';
+      const opts = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? { signal: AbortSignal.timeout(5000) } : {};
+      const resp = await fetch(url, opts);
+      const data = await resp.json();
+      if (data && data.length && data[0].lat && data[0].lon) {
+        const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        state._coordsCache[key] = coords;
+        saveCoordsCache(state._coordsCache);
+        return coords;
+      }
+      return null;
+    } catch(e) { return null; }
+  }
+
+  function collectMapLocations() {
+    const locs = [];
+    const scheduleItems = Object.entries(state.schedule || {});
+    scheduleItems.forEach(([id, item]) => {
+      if (item.location) {
+        locs.push({
+          id: id, name: item.location, mapUrl: item.mapUrl,
+          source: 'schedule', sourceName: '行程', note: item.note
+        });
+      }
+      if (item.endLocation && (item.mode === 'range' || item.endLocation)) {
+        locs.push({
+          id: id + '_end', name: item.endLocation, mapUrl: item.endMapUrl,
+          source: 'schedule', sourceName: '行程（終點）', note: item.note
+        });
+      }
+    });
+    const wishItems = Object.entries(state.wishlist || {});
+    wishItems.forEach(([id, item]) => {
+      const normalized = normalizeWishItem(item);
+      (normalized.locations || []).forEach((loc, idx) => {
+        if (loc.name) {
+          locs.push({
+            id: id + '_w' + idx, name: loc.name, mapUrl: loc.mapUrl,
+            source: 'wishlist', sourceName: 'Marked', note: loc.note || normalized.title
+          });
+        }
+      });
+    });
+    return locs;
   }
 
   // ---------- Balance calc ----------
@@ -2614,6 +2835,84 @@
       .finally(() => { btn.disabled = false; btn.textContent = '儲存'; });
   }
 
+  // ---------- Map rendering ----------
+  function renderMap(){
+    const container = $('#mapContainer');
+    const locs = collectMapLocations();
+
+    if (!locs.length) {
+      container.innerHTML = '<div class="map-loading">還沒有任何地點。請在行程或 Marked 中新增地點及地圖連結。</div>';
+      return;
+    }
+
+    if (state._mapInstance) {
+      state._mapInstance.remove();
+      state._mapInstance = null;
+    }
+
+    container.innerHTML = '<div id="mapLeaflet" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div>';
+
+    const map = L.map('mapLeaflet', {
+      attributionControl: false,
+      zoomControl: true,
+      zoomControlOptions: { position: 'topright' }
+    }).setView([35, 135], 5);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+    L.control.attribution({ prefix: false, position: 'bottomright' }).addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>').addTo(map);
+
+    state._mapInstance = map;
+
+    const legend = $('#mapLegend');
+    legend.innerHTML = '<div class="map-legend-item"><span class="map-legend-dot sched"></span> 行程</div><div class="map-legend-item"><span class="map-legend-dot wish"></span> Marked</div>';
+
+    const allCoords = [];
+
+    locs.forEach(loc => {
+      resolveAndPlace(loc, map, allCoords);
+    });
+
+    setTimeout(() => {
+      if (allCoords.length) {
+        const bounds = L.latLngBounds(allCoords);
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      }
+      map.invalidateSize();
+    }, 600);
+
+    async function resolveAndPlace(loc, map, allCoords) {
+      let coords = await getCoordsForUrl(loc.mapUrl);
+      if (!coords && loc.name) coords = await geocodeByName(loc.name);
+      if (!coords) return;
+
+      allCoords.push([coords.lat, coords.lng]);
+
+      const color = loc.source === 'schedule' ? '#c8842e' : '#1a1a2e';
+      const marker = L.circleMarker([coords.lat, coords.lng], {
+        radius: 7,
+        fillColor: color,
+        color: '#fff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.85
+      }).addTo(map);
+
+      const linkHtml = loc.mapUrl
+        ? `<a class="map-popup-link" href="${escapeHtml(loc.mapUrl)}" target="_blank" rel="noopener">在 Google Maps 開啟 →</a>`
+        : '';
+      const noteHtml = loc.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escapeHtml(loc.note)}</div>` : '';
+
+      marker.bindPopup(`
+        <div class="map-popup-name">${escapeHtml(loc.name)}</div>
+        <div class="map-popup-source">${escapeHtml(loc.sourceName)}</div>
+        ${noteHtml}
+        ${linkHtml}
+      `);
+
+      marker.on('mouseover', function() { this.openPopup(); });
+    }
+  }
+
   // ---------- Wishlist (Marked清單) ----------
   function normalizeWishItem(item){
     const title = item && item.title ? String(item.title) : '';
@@ -2847,19 +3146,22 @@
   function setView(v){
     state.currentView = v;
     $$('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
-    const views = { ledger: '#ledgerView', schedule: '#scheduleView', wishlist: '#wishView' };
+    const views = { ledger: '#ledgerView', schedule: '#scheduleView', wishlist: '#wishView', map: '#mapView' };
     Object.entries(views).forEach(([key, sel]) => {
       const el = $(sel);
       if (key === v) {
         el.style.display = '';
-        el.classList.remove('view-enter');
-        void el.offsetWidth;
-        el.classList.add('view-enter');
+        if (key !== 'map') {
+          el.classList.remove('view-enter');
+          void el.offsetWidth;
+          el.classList.add('view-enter');
+        }
       } else {
         el.style.display = 'none';
         el.classList.remove('view-enter');
       }
     });
+    if (v === 'map') { renderMap(); }
   }
   $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
 
@@ -2941,6 +3243,8 @@
       openSchedNew();
     } else if (state.currentView === 'wishlist') {
       openWishNew();
+    } else if (state.currentView === 'map') {
+      openSchedNew();
     } else {
       if (!memberList().length) { showToast('請先設定成員'); return; }
       openInput();
@@ -3111,11 +3415,13 @@
   tripRef.child('schedule').on('value', snap => {
     state.schedule = snap.val() || {};
     if (state.meta) renderSchedule();
+    if (state.currentView === 'map') renderMap();
   });
 
   tripRef.child('wishlist').on('value', snap => {
     state.wishlist = snap.val() || {};
     if (state.meta) renderWishList();
+    if (state.currentView === 'map') renderMap();
   });
 
   // Initial icons
