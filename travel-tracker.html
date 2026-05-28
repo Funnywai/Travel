@@ -1427,7 +1427,8 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const GOOGLE_MAPS_API_KEY = 'AIzaSyDkVg0WnDRk-KBq7k4bJYYt3rTCWsuPgKM';
+  const GOOGLE_MAPS_API_KEY = '__GOOGLE_MAPS_API_KEY__';
+  const GOOGLE_GEOCODE_API_KEY = '__GOOGLE_GEOCODE_API_KEY__';
 
   // ---------- Trip id from URL hash ----------
   function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
@@ -1611,7 +1612,7 @@
     const key = 'geo:' + name.trim();
     if (state._geocodeCache[key]) return state._geocodeCache[key];
     try {
-      const url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + encodeURIComponent(name.trim()) + '&key=' + GOOGLE_MAPS_API_KEY;
+      const url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + encodeURIComponent(name.trim()) + '&key=' + GOOGLE_GEOCODE_API_KEY;
       const opts = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
         ? { signal: AbortSignal.timeout(5000) } : {};
       const resp = await fetch(url, opts);

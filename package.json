@@ -1,0 +1,7 @@
+{
+  "name": "travel-tracker",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  }
+}
