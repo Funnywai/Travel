@@ -1022,12 +1022,16 @@
   .map-quick-btn:hover { background: #4285f4; color: #fff; border-color: #4285f4; }
   @media (max-width: 600px) {
     .map-back-btn {
-      padding: 6px 10px;
-      font-size: 12px;
-      border-radius: 20px;
+      width: 32px; height: 32px;
+      padding: 0;
+      font-size: 16px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      top: 12px; left: 10px;
     }
-    .map-dir-bar { top: 48px; }
-    .map-quick-jump { top: 148px; }
+    .map-dir-bar { top: 10px; max-width: calc(100% - 56px); }
+    .map-quick-jump { top: 110px; }
   }
 
   /* Schedule */
