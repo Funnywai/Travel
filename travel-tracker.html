@@ -1020,6 +1020,15 @@
     transition: background 0.2s, color 0.2s;
   }
   .map-quick-btn:hover { background: #4285f4; color: #fff; border-color: #4285f4; }
+  @media (max-width: 600px) {
+    .map-back-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 20px;
+    }
+    .map-dir-bar { top: 48px; }
+    .map-quick-jump { top: 148px; }
+  }
 
   /* Schedule */
   .sched-day { margin-bottom: 14px; }
