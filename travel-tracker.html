@@ -1498,6 +1498,8 @@
     coords: {},            // { coordsKey: { key, name, lat, lng } }
     _geocodeCache: {},     // in-memory dedup for geocodeByName
     _mapInstance: null,    // Google Maps instance
+    _pulseCircle: null,    // animated radar pulse circle
+    _pulseAnimId: null,    // requestAnimationFrame ID for pulse
     _previousView: 'ledger', // track previous view for map back button
     schedForm: {           // edit form state for schedule items
       editingId: null,
@@ -2816,8 +2818,7 @@
       return;
     }
 
-    var wasTracking = !!state._watchId;
-    if (wasTracking) stopGeolocation();
+    stopGeolocation();
 
     container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
 
@@ -2845,14 +2846,27 @@
       resolveAndPlace(loc, map, bounds);
     });
 
-    setTimeout(function() {
-      if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
-    }, 1500);
+    function fitAllMarkers() {
+      setTimeout(function() {
+        if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
+      }, 100);
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        var userLatLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+        map.setCenter(userLatLng);
+        if (map.getZoom() < 14) map.setZoom(14);
+        startGeolocation(map);
+      }, function() {
+        fitAllMarkers();
+      }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 });
+    } else {
+      fitAllMarkers();
+    }
 
     var geoBtn = document.getElementById('geolocateBtn');
     if (geoBtn) geoBtn.addEventListener('click', function() { toggleGeolocation(map); });
-
-    if (wasTracking) startGeolocation(map);
   }
 
   function pinSvg(color) {
@@ -2960,6 +2974,28 @@
       } else {
         state._userMarker.setPosition(latlng);
       }
+
+      if (!state._pulseCircle) {
+        state._pulseCircle = new google.maps.Circle({
+          map: map, center: latlng, radius: 20,
+          fillColor: '#4285f4', fillOpacity: 0,
+          strokeColor: '#4285f4', strokeOpacity: 0, strokeWeight: 2,
+          zIndex: 1500
+        });
+        var pulseStart = null;
+        (function pulseStep(ts) {
+          if (!pulseStart) pulseStart = ts;
+          var p = ((ts - pulseStart) % 2000) / 2000;
+          state._pulseCircle.setRadius(20 + p * 60);
+          state._pulseCircle.setOptions({
+            fillOpacity: 0.15 * (1 - p),
+            strokeOpacity: 0.3 * (1 - p)
+          });
+          state._pulseAnimId = requestAnimationFrame(pulseStep);
+        })();
+      } else {
+        state._pulseCircle.setCenter(latlng);
+      }
     }
 
     function onError(err) {
@@ -2986,6 +3022,14 @@
     if (state._accuracyCircle) {
       state._accuracyCircle.setMap(null);
       state._accuracyCircle = null;
+    }
+    if (state._pulseCircle) {
+      state._pulseCircle.setMap(null);
+      state._pulseCircle = null;
+    }
+    if (state._pulseAnimId) {
+      cancelAnimationFrame(state._pulseAnimId);
+      state._pulseAnimId = null;
     }
     var btn = document.getElementById('geolocateBtn');
     if (btn) btn.classList.remove('tracking');
