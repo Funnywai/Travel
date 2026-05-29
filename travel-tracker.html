@@ -995,6 +995,31 @@
   }
   .map-dir-search:disabled { opacity: 0.35; cursor: not-allowed; }
   .map-dir-search:not(:disabled):hover { opacity: 0.85; }
+  .map-quick-jump {
+    position: absolute;
+    top: 110px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .map-quick-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    font-family: 'DM Sans', 'Noto Serif TC', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    padding: 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .map-quick-btn:hover { background: #4285f4; color: #fff; border-color: #4285f4; }
 
   /* Schedule */
   .sched-day { margin-bottom: 14px; }
@@ -1570,6 +1595,7 @@
     _dirEnd: null,           // { name, lat, lng } | null
     _dirActive: null,        // 'start' | 'end' | null
     _userLatLng: null,       // { lat, lng }
+    _openInfoWindow: null,   // currently open InfoWindow instance
     schedForm: {           // edit form state for schedule items
       editingId: null,
       mode: 'single',       // 'single' | 'range'
@@ -1772,7 +1798,7 @@
           locs.push({
             id: id + '_w' + idx, name: loc.name, mapUrl: loc.mapUrl,
             source: 'wishlist', sourceName: 'Marked', note: loc.note || normalized.title,
-            coordsKey: 'wish_' + id + '_' + idx
+            coordsKey: 'wish_' + id + '_' + idx, pinned: item.pinned
           });
         }
       });
@@ -2891,7 +2917,7 @@
     if (wasTracking) stopGeolocation();
 
     var dirSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,11 22,2 13,21 11,13 3,11"/></svg>';
-    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-dir-bar" id="mapDirBar"><div class="map-dir-field" data-field="start" id="mapDirFieldStart"><span class="map-dir-icon">📍</span><span class="map-dir-text" id="mapDirStartText">目前位置</span></div><span class="map-dir-arrow">→</span><div class="map-dir-field" data-field="end" id="mapDirFieldEnd"><span class="map-dir-icon">📍</span><span class="map-dir-text placeholder" id="mapDirEndText">選擇目的地</span></div><button class="map-dir-search" id="mapDirSearch" disabled title="路線搜尋">' + dirSvg + '</button></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
+    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-dir-bar" id="mapDirBar"><div class="map-dir-field" data-field="start" id="mapDirFieldStart"><span class="map-dir-icon">📍</span><span class="map-dir-text" id="mapDirStartText">目前位置</span></div><span class="map-dir-arrow">→</span><div class="map-dir-field" data-field="end" id="mapDirFieldEnd"><span class="map-dir-icon">📍</span><span class="map-dir-text placeholder" id="mapDirEndText">選擇目的地</span></div><button class="map-dir-search" id="mapDirSearch" disabled title="路線搜尋">' + dirSvg + '</button></div><div class="map-quick-jump"><button class="map-quick-btn" data-lat="22.32" data-lng="114.17" data-zoom="11" title="香港">HK</button><button class="map-quick-btn" data-lat="35.68" data-lng="139.76" data-zoom="6" title="日本">JP</button></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
 
     const map = new google.maps.Map(document.getElementById('mapGoogle'), {
       center: { lat: 35, lng: 135 },
@@ -2910,7 +2936,8 @@
     const legend = $('#mapLegend');
     var schedSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#c8842e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
     var wishSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#1a1a2e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
-    legend.innerHTML = '<div class="map-legend-item">' + schedSvg + ' 行程</div><div class="map-legend-item">' + wishSvg + ' Marked</div>';
+    var pinnedSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#e74c3c"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
+    legend.innerHTML = '<div class="map-legend-item">' + schedSvg + ' 行程</div><div class="map-legend-item">' + wishSvg + ' Marked</div><div class="map-legend-item">' + pinnedSvg + ' 置頂</div>';
 
     const bounds = new google.maps.LatLngBounds();
 
@@ -2941,7 +2968,18 @@
         }
       });
     }
-    map.addListener('click', function() { if (state._dirActive) deactivateDirPicking(); });
+    map.addListener('click', function() {
+      if (state._dirActive) deactivateDirPicking();
+      if (state._openInfoWindow) { state._openInfoWindow.close(); state._openInfoWindow = null; }
+    });
+
+    var quickBtns = document.querySelectorAll('.map-quick-btn');
+    quickBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        map.setCenter({ lat: parseFloat(btn.dataset.lat), lng: parseFloat(btn.dataset.lng) });
+        map.setZoom(parseInt(btn.dataset.zoom, 10));
+      });
+    });
 
     if (wasTracking) startGeolocation(map);
   }
@@ -2977,7 +3015,7 @@
     var position = new google.maps.LatLng(coords.lat, coords.lng);
     bounds.extend(position);
 
-    var color = loc.source === 'schedule' ? '#c8842e' : '#1a1a2e';
+    var color = loc.source === 'schedule' ? '#c8842e' : loc.pinned ? '#e74c3c' : '#1a1a2e';
     var marker = new google.maps.Marker({
       position: position,
       map: map,
@@ -3009,8 +3047,14 @@
         fillDirField(state._dirActive, loc.name, coords.lat, coords.lng);
         return;
       }
-      if (infoWindow.getMap()) { infoWindow.close(); }
-      else { infoWindow.open(map, marker); }
+      if (infoWindow.getMap()) {
+        infoWindow.close();
+        state._openInfoWindow = null;
+      } else {
+        if (state._openInfoWindow) state._openInfoWindow.close();
+        infoWindow.open(map, marker);
+        state._openInfoWindow = infoWindow;
+      }
     });
   }
 
