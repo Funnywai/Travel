@@ -1,6 +1,6 @@
 # 旅行記賬 (Travel Expense Tracker)
 
-**Version:** 3.2.1
+**Version:** 3.3.0
 
 A mobile-first travel expense tracker with an editorial travel-journal aesthetic. Single-file HTML + Firebase Realtime Database. No build step, no npm, no localStorage.
 
