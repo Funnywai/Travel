@@ -928,6 +928,73 @@
     text-decoration: none;
     font-weight: 500;
   }
+  .map-dir-bar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(26,26,46,0.88);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 6px 8px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255,255,255,0.1);
+    max-width: calc(100% - 20px);
+  }
+  .map-dir-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 0;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .map-dir-field:hover { border-color: rgba(255,255,255,0.25); }
+  .map-dir-field.active {
+    border-color: #4285f4;
+    background: rgba(66,133,244,0.15);
+    box-shadow: 0 0 0 2px rgba(66,133,244,0.3);
+  }
+  .map-dir-icon { font-size: 13px; flex-shrink: 0; }
+  .map-dir-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+    font-family: 'DM Sans', 'Noto Serif TC', system-ui, sans-serif;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+  .map-dir-text.placeholder { color: rgba(255,255,255,0.4); }
+  .map-dir-arrow {
+    color: rgba(255,255,255,0.3);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .map-dir-search {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: none;
+    background: #4285f4;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+  }
+  .map-dir-search:disabled { opacity: 0.35; cursor: not-allowed; }
+  .map-dir-search:not(:disabled):hover { opacity: 0.85; }
 
   /* Schedule */
   .sched-day { margin-bottom: 14px; }
@@ -1499,6 +1566,10 @@
     _geocodeCache: {},     // in-memory dedup for geocodeByName
     _mapInstance: null,    // Google Maps instance
     _previousView: 'ledger', // track previous view for map back button
+    _dirStart: null,         // { name, lat, lng } | null
+    _dirEnd: null,           // { name, lat, lng } | null
+    _dirActive: null,        // 'start' | 'end' | null
+    _userLatLng: null,       // { lat, lng }
     schedForm: {           // edit form state for schedule items
       editingId: null,
       mode: 'single',       // 'single' | 'range'
@@ -2819,7 +2890,8 @@
     var wasTracking = !!state._watchId;
     if (wasTracking) stopGeolocation();
 
-    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
+    var dirSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,11 22,2 13,21 11,13 3,11"/></svg>';
+    container.innerHTML = '<div id="mapGoogle" style="width:100%;height:100%"></div><div class="map-dir-bar" id="mapDirBar"><div class="map-dir-field" data-field="start" id="mapDirFieldStart"><span class="map-dir-icon">📍</span><span class="map-dir-text" id="mapDirStartText">目前位置</span></div><span class="map-dir-arrow">→</span><div class="map-dir-field" data-field="end" id="mapDirFieldEnd"><span class="map-dir-icon">📍</span><span class="map-dir-text placeholder" id="mapDirEndText">選擇目的地</span></div><button class="map-dir-search" id="mapDirSearch" disabled title="路線搜尋">' + dirSvg + '</button></div><div class="map-legend" id="mapLegend"></div><button id="geolocateBtn" class="map-geolocate-btn" title="顯示我的位置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
 
     const map = new google.maps.Map(document.getElementById('mapGoogle'), {
       center: { lat: 35, lng: 135 },
@@ -2833,6 +2905,7 @@
     });
 
     state._mapInstance = map;
+    startGeolocation(map);
 
     const legend = $('#mapLegend');
     var schedSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#c8842e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
@@ -2846,11 +2919,29 @@
     });
 
     setTimeout(function() {
-      if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
+      if (!bounds.isEmpty() && !state._userMarker) map.fitBounds(bounds, 60);
     }, 1500);
 
     var geoBtn = document.getElementById('geolocateBtn');
     if (geoBtn) geoBtn.addEventListener('click', function() { toggleGeolocation(map); });
+
+    var dirBar = document.getElementById('mapDirBar');
+    if (dirBar) {
+      dirBar.addEventListener('click', function(e) {
+        var field = e.target.closest('.map-dir-field');
+        if (field) {
+          var f = field.dataset.field;
+          if (state._dirActive === f) { deactivateDirPicking(); }
+          else { deactivateDirPicking(); state._dirActive = f; field.classList.add('active'); }
+          return;
+        }
+        if (e.target.closest('#mapDirSearch')) {
+          searchDirections();
+          return;
+        }
+      });
+    }
+    map.addListener('click', function() { if (state._dirActive) deactivateDirPicking(); });
 
     if (wasTracking) startGeolocation(map);
   }
@@ -2897,6 +2988,8 @@
       },
       title: loc.name
     });
+    marker._locName = loc.name;
+    marker._locCoords = { lat: coords.lat, lng: coords.lng };
 
     var linkHtml = loc.mapUrl
       ? '<a class="map-popup-link" href="' + escapeHtml(loc.mapUrl) + '" target="_blank" rel="noopener">在 Google Maps 開啟 →</a>'
@@ -2911,7 +3004,14 @@
         linkHtml
     });
 
-    marker.addListener('click', function() { infoWindow.open(map, marker); });
+    marker.addListener('click', function() {
+      if (state._dirActive) {
+        fillDirField(state._dirActive, loc.name, coords.lat, coords.lng);
+        return;
+      }
+      if (infoWindow.getMap()) { infoWindow.close(); }
+      else { infoWindow.open(map, marker); }
+    });
   }
 
   // ---------- User geolocation ----------
@@ -2933,16 +3033,17 @@
 
     function onPosition(pos) {
       var latlng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+      state._userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
 
       if (!state._accuracyCircle) {
         state._accuracyCircle = new google.maps.Circle({
-          map: map, center: latlng, radius: pos.coords.accuracy,
-          fillColor: '#4285f4', fillOpacity: 0.15,
-          strokeColor: '#4285f4', strokeOpacity: 0.4, strokeWeight: 1
+          map: map, center: latlng, radius: Math.min(pos.coords.accuracy, 20),
+          fillColor: '#4285f4', fillOpacity: 0.1,
+          strokeColor: '#4285f4', strokeOpacity: 0.3, strokeWeight: 1
         });
       } else {
         state._accuracyCircle.setCenter(latlng);
-        state._accuracyCircle.setRadius(pos.coords.accuracy);
+        state._accuracyCircle.setRadius(Math.min(pos.coords.accuracy, 20));
       }
 
       if (!state._userMarker) {
@@ -2954,6 +3055,11 @@
             strokeColor: '#fff', strokeWeight: 3
           },
           zIndex: 2000, title: '我的位置'
+        });
+        state._userMarker.addListener('click', function() {
+          if (state._dirActive && state._userLatLng) {
+            fillDirField(state._dirActive, '目前位置', state._userLatLng.lat, state._userLatLng.lng);
+          }
         });
         map.setCenter(latlng);
         if (map.getZoom() < 14) map.setZoom(14);
@@ -2990,6 +3096,53 @@
     var btn = document.getElementById('geolocateBtn');
     if (btn) btn.classList.remove('tracking');
   }
+
+  // ---------- Directions bar helpers ----------
+  function fillDirField(field, name, lat, lng) {
+    var target = field === 'start' ? '_dirStart' : '_dirEnd';
+    var textId = field === 'start' ? 'mapDirStartText' : 'mapDirEndText';
+    state[target] = { name: name, lat: lat, lng: lng };
+    var el = document.getElementById(textId);
+    if (el) { el.textContent = name; el.classList.remove('placeholder'); }
+    deactivateDirPicking();
+    updateDirSearchBtn();
+  }
+
+  function deactivateDirPicking() {
+    state._dirActive = null;
+    var fields = document.querySelectorAll('.map-dir-field.active');
+    fields.forEach(function(f) { f.classList.remove('active'); });
+  }
+
+  function updateDirSearchBtn() {
+    var btn = document.getElementById('mapDirSearch');
+    if (!btn) return;
+    btn.disabled = !state._dirEnd;
+  }
+
+  function searchDirections() {
+    var originParam, destParam;
+    if (state._dirStart && state._dirStart.name !== '目前位置') {
+      originParam = encodeURIComponent(state._dirStart.name);
+    } else if (state._dirStart) {
+      originParam = state._dirStart.lat + ',' + state._dirStart.lng;
+    } else if (state._userLatLng) {
+      originParam = state._userLatLng.lat + ',' + state._userLatLng.lng;
+    }
+    if (state._dirEnd && state._dirEnd.name !== '目前位置') {
+      destParam = encodeURIComponent(state._dirEnd.name);
+    } else if (state._dirEnd) {
+      destParam = state._dirEnd.lat + ',' + state._dirEnd.lng;
+    }
+    if (destParam) {
+      if (!originParam) { showToast('無法取得目前位置'); return; }
+      var url = 'https://www.google.com/maps/dir/?api=1&origin=' + originParam + '&destination=' + destParam + '&travelmode=transit';
+      window.open(url, '_blank', 'noopener');
+    } else {
+      showToast('請選擇目的地');
+    }
+  }
+
   function normalizeWishItem(item){
     const title = item && item.title ? String(item.title) : '';
     const note = item && item.note ? String(item.note) : '';
