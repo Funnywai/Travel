@@ -2912,7 +2912,10 @@
         linkHtml
     });
 
-    marker.addListener('click', function() { infoWindow.open(map, marker); });
+    marker.addListener('click', function() {
+      if (infoWindow.getMap()) { infoWindow.close(); }
+      else { infoWindow.open(map, marker); }
+    });
   }
 
   // ---------- User geolocation ----------
