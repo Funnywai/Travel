@@ -7,14 +7,17 @@
 - **Firebase Realtime Database** (compat SDK v10) via CDN. The modular SDK won't work here.
 - **Firebase config is hardcoded inline** in the HTML (`firebaseConfig` object). The database URL is `https://travel-2cd12-default-rtdb.asia-southeast1.firebasedatabase.app/`.
 - **Trip ID = URL hash**: `location.hash` is the trip ID (e.g., `#abc12345`). Removing/changing the hash creates a new trip. Don't touch it lightly.
-- Tracked files: `travel-tracker.html`, `vercel.json`, `README.md`.
+- Tracked files: `travel-tracker.html`, `vercel.json`, `README.md`, `server.js`, `build.js`, `.env.example`.
 
 ## Local dev
 
-Must be served over HTTP (Firebase SDK + fonts from CDN, won't load on `file://`):
+Must be served over HTTP (Firebase SDK + fonts from CDN, won't load on `file://`).
+
+API keys (`GOOGLE_MAPS_API_KEY`, `GOOGLE_GEOCODE_API_KEY`) live in `.env` and are injected at serve time — never hardcoded in HTML.
 
 ```bash
-npx serve .          # or: python -m http.server 3000
+node server.js       # preferred: injects API keys from .env
+npx serve .          # fallback: no API keys injected
 ```
 
 ## Code conventions

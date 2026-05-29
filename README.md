@@ -1,5 +1,7 @@
 # 旅行記賬 (Travel Expense Tracker)
 
+**Version:** 3.2.1
+
 A mobile-first travel expense tracker with an editorial travel-journal aesthetic. Single-file HTML + Firebase Realtime Database. No build step, no npm, no localStorage.
 
 Track shared trip expenses across multiple currencies, see real-time balances, manage a shared itinerary, and collect places you want to visit.
@@ -31,7 +33,18 @@ Track shared trip expenses across multiple currencies, see real-time balances, m
 
 The app loads Firebase SDK and fonts from CDNs, so it must be served over HTTP (not `file://`).
 
-### Option 1: Python
+### Option 1: Dev server (recommended)
+
+API keys are kept in `.env` and injected at serve time — never hardcoded in HTML.
+
+```bash
+cd /path/to/Travel
+node server.js
+```
+
+Open http://localhost:3000
+
+### Option 2: Python
 
 ```bash
 cd /path/to/Travel
@@ -40,7 +53,7 @@ python -m http.server 3000
 
 Open http://localhost:3000
 
-### Option 2: Node.js
+### Option 3: Node.js (npx serve)
 
 ```bash
 cd /path/to/Travel
@@ -49,11 +62,11 @@ npx serve .
 
 Open the URL printed in the terminal.
 
-### Option 3: VS Code Live Server
+### Option 4: VS Code Live Server
 
 Install the **Live Server** extension by Ritwick Dey, then right-click `travel-tracker.html` → **Open with Live Server**.
 
-### Option 4: PHP
+### Option 5: PHP
 
 ```bash
 cd /path/to/Travel
