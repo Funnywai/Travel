@@ -2833,6 +2833,7 @@
     });
 
     state._mapInstance = map;
+    startGeolocation(map);
 
     const legend = $('#mapLegend');
     var schedSvg = '<svg width="10" height="14" viewBox="0 0 26 36"><path d="M13 0C5.83 0 0 5.83 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.83 20.17 0 13 0z" fill="#c8842e"/><circle cx="13" cy="13" r="5" fill="white"/></svg>';
@@ -2846,7 +2847,7 @@
     });
 
     setTimeout(function() {
-      if (!bounds.isEmpty()) map.fitBounds(bounds, 60);
+      if (!bounds.isEmpty() && !state._userMarker) map.fitBounds(bounds, 60);
     }, 1500);
 
     var geoBtn = document.getElementById('geolocateBtn');
