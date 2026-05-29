@@ -3,7 +3,6 @@ const http = require('http');
 const path = require('path');
 
 const HTML_FILE = path.join(__dirname, 'travel-tracker.html');
-const HTML = fs.readFileSync(HTML_FILE, 'utf-8');
 
 const ENV = {};
 try {
@@ -21,7 +20,7 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer(function(req, res) {
-  let html = HTML
+  const html = fs.readFileSync(HTML_FILE, 'utf-8')
     .replace(/__GOOGLE_MAPS_API_KEY__/g, ENV.GOOGLE_MAPS_API_KEY || '')
     .replace(/__GOOGLE_GEOCODE_API_KEY__/g, ENV.GOOGLE_GEOCODE_API_KEY || '');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

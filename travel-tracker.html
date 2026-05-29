@@ -114,6 +114,14 @@
 
   /* Sections */
   .section { padding: 20px; }
+
+  /* Map fullscreen mode */
+  body.map-fullscreen .header { display: none; }
+  body.map-fullscreen .view-switcher { display: none; }
+  body.map-fullscreen #app { max-width: none; }
+  body.map-fullscreen .map-view { height: 100vh; }
+  body.map-fullscreen .section { padding: 0; }
+
   .section-title {
     font-size: 12px;
     font-weight: 700;
@@ -885,6 +893,24 @@
     color: var(--text-muted);
     font-size: 14px;
   }
+  .map-back-btn {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1010;
+    background: rgba(26,26,46,0.85);
+    color: var(--accent-glow);
+    border: 1px solid rgba(240,192,96,0.3);
+    border-radius: 24px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    font-family: 'DM Sans', 'Noto Serif TC', system-ui, sans-serif;
+  }
+  .map-back-btn:hover { background: rgba(26,26,46,0.95); }
   .map-popup-name {
     font-weight: 600;
     font-size: 14px;
@@ -1325,6 +1351,7 @@
         <div class="map-loading">正在載入地圖...</div>
       </div>
     </div>
+    <button class="map-back-btn" id="mapBackBtn" aria-label="返回">← 返回</button>
   </div>
 
   <button class="fab" id="fab" aria-label="新增">
@@ -1471,6 +1498,7 @@
     coords: {},            // { coordsKey: { key, name, lat, lng } }
     _geocodeCache: {},     // in-memory dedup for geocodeByName
     _mapInstance: null,    // Google Maps instance
+    _previousView: 'ledger', // track previous view for map back button
     schedForm: {           // edit form state for schedule items
       editingId: null,
       mode: 'single',       // 'single' | 'range'
@@ -3192,6 +3220,7 @@
 
   // ---------- View switching ----------
   function setView(v){
+    if (v === 'map') state._previousView = state.currentView;
     state.currentView = v;
     $$('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
     const views = { ledger: '#ledgerView', schedule: '#scheduleView', wishlist: '#wishView', map: '#mapView' };
@@ -3210,9 +3239,11 @@
       }
     });
     if (v === 'map') {
+      document.body.classList.add('map-fullscreen');
       $('#fab').style.display = 'none';
       document.body.style.overflow = 'hidden';
     } else {
+      document.body.classList.remove('map-fullscreen');
       $('#fab').style.display = '';
       document.body.style.overflow = '';
       stopGeolocation();
@@ -3220,6 +3251,7 @@
     if (v === 'map') { renderMap(); }
   }
   $$('.view-tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
+  $('#mapBackBtn').addEventListener('click', () => setView(state._previousView || 'ledger'));
 
   // Summary popup buttons
   function openSummaryPopup(mode){
