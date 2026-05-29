@@ -21,16 +21,21 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer(function(req, res) {
-  if (req.url === '/' || req.url.startsWith('/#')) {
-    let html = HTML
-      .replace(/__GOOGLE_MAPS_API_KEY__/g, ENV.GOOGLE_MAPS_API_KEY || '')
-      .replace(/__GOOGLE_GEOCODE_API_KEY__/g, ENV.GOOGLE_GEOCODE_API_KEY || '');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(html);
-    return;
+  let html = HTML
+    .replace(/__GOOGLE_MAPS_API_KEY__/g, ENV.GOOGLE_MAPS_API_KEY || '')
+    .replace(/__GOOGLE_GEOCODE_API_KEY__/g, ENV.GOOGLE_GEOCODE_API_KEY || '');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
+});
+
+server.on('error', function(err) {
+  if (err.code === 'EADDRINUSE') {
+    console.error('Port ' + PORT + ' is already in use. Stop the other process or use:');
+    console.error('  netstat -ano | findstr :' + PORT);
+    console.error('  taskkill /PID <pid> /F');
+    process.exit(1);
   }
-  res.writeHead(404);
-  res.end();
+  throw err;
 });
 
 server.listen(PORT, function() {

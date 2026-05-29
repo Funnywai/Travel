@@ -2796,6 +2796,7 @@
     const map = new google.maps.Map(document.getElementById('mapGoogle'), {
       center: { lat: 35, lng: 135 },
       zoom: 5,
+      gestureHandling: "greedy",
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
@@ -2883,7 +2884,6 @@
     });
 
     marker.addListener('click', function() { infoWindow.open(map, marker); });
-    marker.addListener('mouseover', function() { infoWindow.open(map, marker); });
   }
 
   // ---------- User geolocation ----------
