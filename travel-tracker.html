@@ -54,7 +54,7 @@
     background-repeat: repeat;
     background-size: 256px 256px;
     pointer-events: none;
-    z-index: 9999;
+    z-index: 0;
     opacity: 0.35;
   }
   #app {
@@ -374,10 +374,12 @@
   .form-label { font-size: 14px; color: var(--text-muted); width: 70px; flex-shrink: 0; }
   .form-input {
     flex: 1;
+    min-width: 0;
     border: none;
     outline: none;
     background: transparent;
     text-align: right;
+    padding-right: 6px;
     color: var(--text);
   }
   .form-input.left { text-align: left; }
@@ -388,7 +390,6 @@
     -webkit-appearance: none;
     appearance: none;
     text-align: right;
-    min-width: 0;
   }
   input.form-input[type="date"]::-webkit-date-and-time-value {
     text-align: right;
