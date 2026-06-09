@@ -8,6 +8,7 @@
 - **Firebase config is hardcoded inline** in the HTML (`firebaseConfig` object). The database URL is `https://travel-2cd12-default-rtdb.asia-southeast1.firebasedatabase.app/`.
 - **Trip ID = URL hash**: `location.hash` is the trip ID (e.g., `#abc12345`). Removing/changing the hash creates a new trip. Don't touch it lightly.
 - Tracked files: `travel-tracker.html`, `vercel.json`, `README.md`, `server.js`, `build.js`, `.env.example`.
+- **Version constant**: `VERSION = 'x.y.z'` is defined at the top of the IIFE in `travel-tracker.html`. When bumping the version during a PR, update **both** `README.md` and the `VERSION` constant in `travel-tracker.html`.
 
 ## Local dev
 
