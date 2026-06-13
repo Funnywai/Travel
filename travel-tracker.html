@@ -690,6 +690,13 @@
   .modal.centered .modal-content { border-radius: var(--radius); margin: 16px; }
   @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   .modal-title { font-size: 18px; font-weight: 700; margin: 0 0 16px; }
+  .exchange-row { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .exchange-row select,
+  .exchange-row input { border: none; background: transparent; padding: 4px; font-size: 14px; outline: none; }
+  .exchange-amount { width: 100px; text-align: right; }
+  .exchange-result { padding: 8px 10px; font-size: 14px; font-weight: 600; text-align: right; color: var(--accent); min-width: 100px; }
+  .exchange-divider { height: 1px; background: var(--border); margin: 8px 0 12px; }
+  .rate-info { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 16px; }
   .text-input {
     width: 100%;
     padding: 10px 12px;
@@ -1390,6 +1397,9 @@
 <div id="app">
   <div class="header">
     <div class="group-name" id="groupName">載入中...</div>
+    <button class="icon-btn" id="exchangeBtn" aria-label="匯率換算">
+      <i data-lucide="arrow-left-right"></i>
+    </button>
     <button class="icon-btn" id="settingsBtn" aria-label="設定">
       <i data-lucide="settings"></i>
     </button>
@@ -1569,6 +1579,24 @@
   </div>
 </div>
 
+<!-- Exchange modal -->
+<div class="modal centered" id="exchangeModal">
+  <div class="modal-content">
+    <h2 class="modal-title">匯率換算</h2>
+    <div class="exchange-row">
+      <input id="exchangeAmount" type="number" class="exchange-amount" placeholder="金額" value="1" />
+      <select id="exchangeFrom"></select>
+    </div>
+    <div class="exchange-divider"></div>
+    <div class="exchange-row">
+      <div id="exchangeResult" class="exchange-result">—</div>
+      <select id="exchangeTo"></select>
+    </div>
+    <div id="exchangeRateInfo" class="rate-info"></div>
+    <button class="btn-primary" id="exchangeClose">完成</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1583,7 +1611,7 @@
   const db = firebase.database();
 
   const GOOGLE_GEOCODE_API_KEY = '__GOOGLE_GEOCODE_API_KEY__';
-  const VERSION = '3.10.0';
+  const VERSION = '3.11.0';
 
   // ---------- Trip id from URL hash ----------
   function randomId(n=6){ return Math.random().toString(36).slice(2, 2+n); }
@@ -1661,7 +1689,7 @@
     if (!base) return null;
     if (state.rates[base]) return state.rates[base];
     try {
-      const res = await fetch(`https://api.exchangerate.fun/latest?base=${encodeURIComponent(base)}`);
+      const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${encodeURIComponent(base)}`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!data || !data.rates) throw new Error('回應格式錯誤');
@@ -1719,7 +1747,7 @@
     if (state.rateLoading) { el.textContent = '正在取得匯率...'; return; }
     if (state.rateError) { el.textContent = '匯率取得失敗：' + state.rateError; el.style.color = 'var(--error)'; return; }
     el.style.color = 'var(--text-muted)';
-    el.textContent = `已使用即時匯率（exchangerate.fun）轉換為 ${state.displayCurrency}`;
+    el.textContent = `已使用即時匯率（exchangerate-api.com）轉換為 ${state.displayCurrency}`;
   }
 
   function renderAll(){
@@ -3628,6 +3656,92 @@
       ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
       showToast('已複製連結');
     }
+  });
+
+  // ---------- Exchange ----------
+  function saveExchangeCurrencies() {
+    try {
+      localStorage.setItem('travel_exchange_currencies', JSON.stringify({
+        from: $('#exchangeFrom').value,
+        to: $('#exchangeTo').value
+      }));
+    } catch (_) {}
+  }
+
+  function getExchangeDefaults() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('travel_exchange_currencies'));
+      if (saved && CURRENCIES.includes(saved.from) && CURRENCIES.includes(saved.to)) {
+        return { from: saved.from, to: saved.to };
+      }
+    } catch (_) {}
+    const freq = {};
+    Object.values(state.records || {}).forEach(r => {
+      if (r && r.currency) freq[r.currency] = (freq[r.currency] || 0) + 1;
+    });
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    return {
+      from: sorted[0]?.[0] || CURRENCIES[0],
+      to: state.displayCurrency || sorted[1]?.[0] || CURRENCIES[1]
+    };
+  }
+
+  function renderExchange() {
+    const fromSel = $('#exchangeFrom');
+    const toSel = $('#exchangeTo');
+    const def = getExchangeDefaults();
+    fromSel.innerHTML = CURRENCIES.map(c => `<option value="${c}" ${c===def.from?'selected':''}>${c}</option>`).join('');
+    toSel.innerHTML = CURRENCIES.map(c => `<option value="${c}" ${c===def.to?'selected':''}>${c}</option>`).join('');
+    $('#exchangeAmount').value = 1;
+    updateExchangeResult();
+  }
+
+  function updateExchangeResult() {
+    const from = $('#exchangeFrom').value;
+    const to = $('#exchangeTo').value;
+    const amount = parseFloat($('#exchangeAmount').value) || 0;
+    const resultEl = $('#exchangeResult');
+    const rateEl = $('#exchangeRateInfo');
+    if (!from || !to) {
+      resultEl.textContent = '—';
+      rateEl.textContent = '';
+      return;
+    }
+    const conv = convert(amount, from, to);
+    const rate = convert(1, from, to);
+    if (conv.ok && rate.ok) {
+      resultEl.textContent = round2(conv.value) + ' ' + to;
+      rateEl.textContent = '1 ' + from + ' = ' + rate.value.toFixed(4) + ' ' + to;
+    } else {
+      resultEl.textContent = '載入中...';
+      rateEl.textContent = '';
+      ensureRatesFor(from).then(() => {
+        if (from !== to) return ensureRatesFor(to);
+      }).then(() => {
+        const conv2 = convert(amount, from, to);
+        const rate2 = convert(1, from, to);
+        if (conv2.ok && rate2.ok) {
+          resultEl.textContent = round2(conv2.value) + ' ' + to;
+          rateEl.textContent = '1 ' + from + ' = ' + rate2.value.toFixed(4) + ' ' + to;
+        } else {
+          resultEl.textContent = '匯率無法取得';
+          rateEl.textContent = '';
+        }
+      });
+    }
+  }
+
+  $('#exchangeBtn').addEventListener('click', () => {
+    renderExchange();
+    $('#exchangeModal').classList.add('open');
+    loadAllRates();
+  });
+  $('#exchangeClose').addEventListener('click', () => $('#exchangeModal').classList.remove('open'));
+  $('#exchangeFrom').addEventListener('change', () => { saveExchangeCurrencies(); updateExchangeResult(); });
+  $('#exchangeTo').addEventListener('change', () => { saveExchangeCurrencies(); updateExchangeResult(); });
+  $('#exchangeAmount').addEventListener('input', updateExchangeResult);
+  $('#exchangeModal').addEventListener('click', e => {
+    if (e.target.id === 'exchangeModal') $('#exchangeModal').classList.remove('open');
   });
 
   // ---------- Setup flow ----------
